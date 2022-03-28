@@ -4,26 +4,31 @@ from pathlib import Path
 from types import TracebackType
 from varats.experiment.experiment_util import ZippedReportFolder
 from varats.report.report import BaseReport
+from typing import TypeVar, Generic
 
-class ReportAggregate(BaseReport, shorthand="Agg", file_type="zip"):
+
+T = TypeVar('T')
+
+class ReportAggregate(BaseReport, Generic[T], shorthand="Agg", file_type="zip"):
     """
     Context Manager for aggregating multiple reports in a zip file. An
     experiment step can simply put multiple reports into `tempdir`, which will
     be zipped upon `__exit()`. Existing files are extracted into `tempdir` on
-    `__enter()`.
+    `__enter()`. `__enter()` must be called before accessing any properties of
+    this class.
     """
 
     def __init__(self, path: Path, report_type: tp.Type[BaseReport]) -> None:
         super().__init__(path)
-        self.__report_type = report_type
         self.__zipped_report = ZippedReportFolder(path)
+        self.__report_type = report_type
 
     def __enter__(self) -> Path:
-        """If the archive already exists, unzips the contents into `tempdir`."""
+        """Creates the temporary directory and unzips reports from an existing
+        zip archive into it."""
         self.__zipped_report.__enter__()
 
         zipfile = self.__zipped_report.zipfile
-        print("a")
         if zipfile.exists():
             shutil.unpack_archive(zipfile, self.tempdir)
 
@@ -39,14 +44,10 @@ class ReportAggregate(BaseReport, shorthand="Agg", file_type="zip"):
     
     @property
     def tempdir(self) -> Path:
-        """Returns the path to the temporary directory to drop files into."""
+        """Returns the path to the temporary directory to drop reports into."""
         return Path(self.__zipped_report.name)
 
     @property
-    def report_type(self) -> tp.Type[BaseReport]:
-        return self.__report_type
-
-    @property
-    def reports(self) -> list[BaseReport]:
-        """Returns all reports present inside the folder."""
+    def reports(self) -> tp.List[T]:
+        """Returns a list of all reports present inside `tempdir`."""
         return [self.__report_type(file) for file in self.tempdir.iterdir()]

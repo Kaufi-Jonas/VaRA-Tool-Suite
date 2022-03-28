@@ -167,8 +167,13 @@ class FeatureDryTime(VersionExperiment, shorthand="FDT"):
     REPORT_SPEC = ReportSpecification(
         EmptyReport, TimeReportAggregate, TEFReportAggregate)
 
+    # Indicate whether to trace binaries and whether USDT markers should be used
+    TRACE_BINARIES = False
+    USE_USDT = False
+
+
     def actions_for_project(
-        self, project: Project, usdt: bool = False, tracing_active: bool = False
+        self, project: Project
     ) -> tp.MutableSequence[actions.Step]:
         """
         Returns the specified steps to run the project(s) specified in the call
@@ -179,7 +184,7 @@ class FeatureDryTime(VersionExperiment, shorthand="FDT"):
         """
 
         # Add tracing markers.
-        if tracing_active or usdt:
+        if self.TRACE_BINARIES or self.USE_USDT:
             fm_provider = FeatureModelProvider.create_provider_for_project(
                 project)
             if fm_provider is None:
@@ -196,11 +201,11 @@ class FeatureDryTime(VersionExperiment, shorthand="FDT"):
                 f"-fvara-fm-path={fm_path.absolute()}",
                 "-fsanitize=vara"
             ]
-            if usdt:
+            if self.USE_USDT:
                 project.cflags += [
                     "-fvara-instr=usdt"
                 ]
-            elif tracing_active:
+            elif self.TRACE_BINARIES:
                 project.cflags += [
                     "-fvara-instr=trace_event"
                 ]
@@ -226,7 +231,7 @@ class FeatureDryTime(VersionExperiment, shorthand="FDT"):
 
         analysis_actions.append(ExecWithTime(
             project, self.get_handle(), 100,
-            tracing_active and usdt))
+            self.TRACE_BINARIES and self.USE_USDT))
 
         analysis_actions.append(actions.Clean(project))
 
@@ -238,11 +243,14 @@ class FeatureDryTimeUSDT(FeatureDryTime, shorthand="FDTUsdt"):
 
     NAME = "FeatureDryTimeUsdt"
 
+    TRACE_BINARIES = False
+    USE_USDT = True
+
     def actions_for_project(
         self, project: Project
     ) -> tp.MutableSequence[actions.Step]:
 
-        return super().actions_for_project(project, True, False)
+        return super().actions_for_project(project)
 
 
 class FeatureTefTime(FeatureDryTime, shorthand="FTT"):
@@ -251,11 +259,14 @@ class FeatureTefTime(FeatureDryTime, shorthand="FTT"):
 
     NAME = "FeatureTefTime"
 
+    TRACE_BINARIES = True
+    USE_USDT = False
+
     def actions_for_project(
         self, project: Project
     ) -> tp.MutableSequence[actions.Step]:
 
-        return super().actions_for_project(project, False, True)
+        return super().actions_for_project(project)
 
 
 class FeatureTefTimeUSDT(FeatureDryTime, shorthand="FTTUsdt"):
@@ -264,8 +275,11 @@ class FeatureTefTimeUSDT(FeatureDryTime, shorthand="FTTUsdt"):
 
     NAME = "FeatureTefTimeUsdt"
 
+    TRACE_BINARIES = True
+    USE_USDT = True
+
     def actions_for_project(
         self, project: Project
     ) -> tp.MutableSequence[actions.Step]:
 
-        return super().actions_for_project(project, True, True)
+        return super().actions_for_project(project)

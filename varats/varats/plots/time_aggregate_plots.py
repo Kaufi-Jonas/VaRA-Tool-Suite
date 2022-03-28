@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 import seaborn as sns
-from varats.report.gnu_time_report import TimeReport, TimeReportAggregate
+from varats.report.gnu_time_report import TimeReportAggregate
 
 from varats.paper_mgmt.case_study import get_case_study_file_name_filter
 from varats.paper_mgmt.paper_config import get_loaded_paper_config
@@ -14,7 +14,7 @@ from varats.plot.plots import PlotGenerator, PlotConfig
 from varats.revision.revisions import get_processed_revisions_files
 
 
-class CaseStudyOverviewPlot(Plot, plot_name="time_boxplot"):
+class TimeBoxPlot(Plot, plot_name="time_boxplot"):
     """Box plot of `TimeReportAggregate`."""
 
     NAME = 'time_boxplot'
@@ -37,13 +37,11 @@ class CaseStudyOverviewPlot(Plot, plot_name="time_boxplot"):
                 False
             )
 
-            report_file: Path
             for report_file in report_files:
 
                 time_aggregated = TimeReportAggregate(report_file)
                 with time_aggregated:
 
-                    time_report: TimeReport
                     for time_report in time_aggregated.reports:
 
                         plot_values.append({
@@ -78,4 +76,4 @@ class TimeBoxPlotGenerator(
     """Generates a box plot for `TimeReportAggregate`."""
 
     def generate(self) -> tp.List[Plot]:
-        return [CaseStudyOverviewPlot(self.plot_config, **self.plot_kwargs)]
+        return [TimeBoxPlot(self.plot_config, **self.plot_kwargs)]
