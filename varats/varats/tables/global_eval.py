@@ -97,7 +97,7 @@ def filter_report_paths_binary(
 
 class PhasarGlobalsDataComparision(Table):
     """Comparision overview of gathered phasar globals analysis data to compare
-    the effect of using gloabls analysis."""
+    the effect of using globals analysis."""
 
     NAME = "phasar_globals"
 
