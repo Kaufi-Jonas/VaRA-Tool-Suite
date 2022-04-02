@@ -23,13 +23,10 @@ import re
 import typing as tp
 from datetime import timedelta
 from pathlib import Path
-import numpy as np
-import typing as tp
 
 import numpy as np
 
-from varats.report.report import BaseReport
-from varats.report.report_aggregate import ReportAggregate
+from varats.report.report import BaseReport, ReportAggregate
 from varats.utils.util import static_vars
 
 
@@ -210,7 +207,8 @@ class TimeReportAggregate(
     shorthand=TimeReport.SHORTHAND + ReportAggregate.SHORTHAND,
     file_type=ReportAggregate.FILE_TYPE
 ):
-    """Manages multiple time reports in a zip archive."""
+    """Context Manager for parsing multiple time reports stored inside a zip
+    file."""
 
     def __init__(self, path: Path) -> None:
         super().__init__(path, TimeReport)
