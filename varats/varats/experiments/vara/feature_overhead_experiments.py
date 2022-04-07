@@ -1,34 +1,37 @@
-"""Module for experiments that measure the runtime overhead introduced by instrumenting
-binaries produced by a project."""
+"""Module for experiments that measure the runtime overhead introduced by
+instrumenting binaries produced by a project."""
 import typing as tp
 from pathlib import Path
+from signal import SIGINT
+from subprocess import Popen
+from time import sleep
 
 from benchbuild import Project
-from benchbuild.extensions import compiler, run, time as bbtime
+from benchbuild.extensions import compiler, run
+from benchbuild.extensions import time as bbtime
 from benchbuild.utils import actions
-from varats.report.tef_report import TEFReport, TEFReportAggregate
-from benchbuild.utils.cmd import time, sh
-from plumbum import local
+from benchbuild.utils.cmd import time, bpftrace, echo, kill
+from plumbum import BG, FG, local
+from plumbum.commands.modifiers import Future
+from psutil import Process
 
+from varats.data.reports.empty_report import EmptyReport
 from varats.experiment.experiment_util import (
     ExperimentHandle,
+    ZippedReportFolder,
     get_varats_result_folder,
     VersionExperiment,
-    get_default_compile_error_wrapped
+    get_default_compile_error_wrapped,
 )
 from varats.project.project_util import ProjectBinaryWrapper, BinaryType
 from varats.provider.feature.feature_model_provider import (
     FeatureModelProvider,
     FeatureModelNotFound,
 )
-from varats.report.report import FileStatusExtension, ReportSpecification
 from varats.report.gnu_time_report import TimeReport, TimeReportAggregate
-from varats.data.reports.empty_report import EmptyReport
+from varats.report.report import FileStatusExtension, ReportSpecification
+from varats.report.tef_report import TEFReport, TEFReportAggregate
 from varats.tools.research_tools.vara import VaRA
-
-
-BPFTRACE_SCRIPT_TEMPLATE = "sudo bpftrace -o \"{tef_report_file}\" -q -c " \
-    "\"{run_cmd}\" \"{bpftrace_script}\" \"{binary_path}\""
 
 
 class ExecWithTime(actions.Step):  # type: ignore
@@ -42,10 +45,18 @@ class ExecWithTime(actions.Step):  # type: ignore
     WORKLOADS = {
         "SimpleSleepLoop": ["--iterations", "1000", "--sleepms", "5"],
         "SimpleBusyLoop": ["--iterations", "1000", "--count_to", "10000000"],
-        "xz": ["-k", "-f", "-9e", "--compress", "--threads=8", "--format=xz",
-               "/home/jonask/Repos/WorkloadsForConfigurableSystems/xz/countries-land-1km.geo.json"],
-        "brotli": ["-f", "-k", "-o", "/tmp/brotli_compression_test.br", "--best", "/home/jonask/Repos/WorkloadsForConfigurableSystems/brotli/countries-land-1km.geo.json"]
+        "xz": [
+            "-k", "-f", "-9e", "--compress", "--threads=8", "--format=xz",
+            "/home/jonask/Repos/WorkloadsForConfigurableSystems/xz/countries-land-1km.geo.json"
+        ],
+        "brotli": [
+            "-f", "-k", "-o", "/tmp/brotli_compression_test.br", "--best",
+            "/home/jonask/Repos/WorkloadsForConfigurableSystems/brotli/countries-land-1km.geo.json"
+        ]
     }
+
+    # Hack: Wait for sudo password to be entered
+    sudo_password_entered = False
 
     def __init__(
         self,
@@ -68,7 +79,6 @@ class ExecWithTime(actions.Step):  # type: ignore
         binary: ProjectBinaryWrapper
 
         for binary in project.binaries:
-
             if binary.type != BinaryType.EXECUTABLE:
                 continue
 
@@ -76,11 +86,12 @@ class ExecWithTime(actions.Step):  # type: ignore
             workload = self.WORKLOADS.get(binary.name, None)
             if (workload == None):
                 print(
-                    f"No workload defined for project={project.name} and binary={binary.name}. Skipping.")
+                    f"No workload for project={project.name} binary={binary.name}. Skipping."
+                )
                 continue
 
-            # Path for TEF report.
-            tef_report_dir_name = self.__experiment_handle.get_file_name(
+            # Assemble Path for TEF report.
+            tef_report_file_name = self.__experiment_handle.get_file_name(
                 TEFReportAggregate.shorthand(),
                 project_name=str(project.name),
                 binary_name=binary.name,
@@ -89,11 +100,12 @@ class ExecWithTime(actions.Step):  # type: ignore
                 extension_type=FileStatusExtension.SUCCESS
             )
 
-            tef_report_dir = Path(
-                vara_result_folder, str(tef_report_dir_name))
+            tef_report_file = Path(
+                vara_result_folder, str(tef_report_file_name)
+            )
 
-            # Path for time report.
-            time_report_dir_name = self.__experiment_handle.get_file_name(
+            # Assemble Path for time report.
+            time_report_file_name = self.__experiment_handle.get_file_name(
                 TimeReportAggregate.shorthand(),
                 project_name=str(project.name),
                 binary_name=binary.name,
@@ -102,12 +114,13 @@ class ExecWithTime(actions.Step):  # type: ignore
                 extension_type=FileStatusExtension.SUCCESS
             )
 
-            time_report_dir = Path(
-                vara_result_folder, str(time_report_dir_name))
+            time_report_file = Path(
+                vara_result_folder, str(time_report_file_name)
+            )
 
             # Execute binary.
-            with TEFReportAggregate(tef_report_dir) as tef_tmp, \
-                    TimeReportAggregate(time_report_dir) as time_tmp:
+            with ZippedReportFolder(tef_report_file) as tef_tmp, \
+                    ZippedReportFolder(time_report_file) as time_tmp:
 
                 for i in range(self.__num_iterations):
 
@@ -115,45 +128,62 @@ class ExecWithTime(actions.Step):  # type: ignore
                     print(
                         f"Binary={binary.name} Progress "
                         f"{i}/{self.__num_iterations}",
-                        flush=True)
+                        flush=True
+                    )
 
                     # Generate report file names.
                     tef_report_file = Path(
-                        tef_tmp,
-                        f"tef_iteration_{i}.{TEFReport.FILE_TYPE}")
+                        tef_tmp, f"tef_iteration_{i}.{TEFReport.FILE_TYPE}"
+                    )
                     time_report_file = Path(
-                        time_tmp,
-                        f"time_iteration_{i}.{TimeReport.FILE_TYPE}")
+                        time_tmp, f"time_iteration_{i}.{TimeReport.FILE_TYPE}"
+                    )
 
                     # Generate run command.
                     with local.cwd(project.source_of_primary), \
-                        local.env(VARA_TRACE_FILE=tef_report_file):
+                            local.env(VARA_TRACE_FILE=tef_report_file):
                         run_cmd = binary[workload]
+                        run_cmd = time["-v", "-o", time_report_file, run_cmd]
 
                         # Attach bpftrace script to activate USDT markers.
+                        bpftrace_runner: Future
                         if self.__usdt:
                             # attach bpftrace to binary to allow tracing it via USDT
                             bpftrace_script = Path(
-                                VaRA.source_location(),
-                                "vara-llvm-project/vara/tools/perf_bpftrace/"
-                                "UsdtTefMarker.bt")
-
-                            script_text = BPFTRACE_SCRIPT_TEMPLATE.format(
-                                tef_report_file=tef_report_file,
-                                run_cmd=run_cmd,
-                                bpftrace_script=bpftrace_script,
-                                binary_path=binary.entry_point
+                                VaRA.install_location(),
+                                "tools/perf_bpf_tracing/UsdtTefMarker.bt"
                             )
 
-                            bpftrace_script_path = "/tmp/bpftace_run_script.sh"
+                            bpftrace_cmd = bpftrace["-o", tef_report_file, "-q",
+                                                    bpftrace_script,
+                                                    binary.path]
 
-                            with open(bpftrace_script_path, "w") as bpftrace_scipt_file:
-                                bpftrace_scipt_file.write(script_text)
+                            with local.as_root():
+                                # Make user input sudo password in the
+                                # foreground with the goal that this won't be
+                                # necessary later when bpftrace is running in
+                                # the background.
+                                if not ExecWithTime.sudo_password_entered:
+                                    ExecWithTime.sudo_password_entered = True
+                                    echo["Triggered sudo password input via 'echo'."
+                                        ] & FG
 
-                                run_cmd = sh[bpftrace_script_path]
+                                bpftrace_runner = bpftrace_cmd & BG
+                                sleep(1)  # give bpftrace time to start up
 
                         # Run.
-                        time("-v", "-o", time_report_file, run_cmd)
+                        run_cmd & FG
+
+                        # Send CTRL+C to stop bpftrace running in background.
+                        if self.__usdt:
+                            bpftrace_proc: Popen = bpftrace_runner.proc
+                            process = Process(bpftrace_proc.pid)
+                            subprocesses = process.children()
+
+                            with local.as_root():
+                                kill("-s", "SIGINT", subprocesses[0].pid)
+
+                            bpftrace_runner.wait()
 
         return actions.StepResult.OK
 
@@ -165,12 +195,12 @@ class FeatureDryTime(VersionExperiment, shorthand="FDT"):
     NAME = "FeatureDryTime"
 
     REPORT_SPEC = ReportSpecification(
-        EmptyReport, TimeReportAggregate, TEFReportAggregate)
+        EmptyReport, TimeReportAggregate, TEFReportAggregate
+    )
 
     # Indicate whether to trace binaries and whether USDT markers should be used
     TRACE_BINARIES = False
     USE_USDT = False
-
 
     def actions_for_project(
         self, project: Project
@@ -186,29 +216,26 @@ class FeatureDryTime(VersionExperiment, shorthand="FDT"):
         # Add tracing markers.
         if self.TRACE_BINARIES or self.USE_USDT:
             fm_provider = FeatureModelProvider.create_provider_for_project(
-                project)
+                project
+            )
             if fm_provider is None:
                 raise Exception("Could not get FeatureModelProvider!")
 
             fm_path = fm_provider.get_feature_model_path(
-                project.version_of_primary)
+                project.version_of_primary
+            )
             if fm_path is None or not fm_path.exists():
                 raise FeatureModelNotFound(project, fm_path)
 
             # Sets vara tracing flags
             project.cflags += [
-                "-fvara-feature",
-                f"-fvara-fm-path={fm_path.absolute()}",
+                "-fvara-feature", f"-fvara-fm-path={fm_path.absolute()}",
                 "-fsanitize=vara"
             ]
             if self.USE_USDT:
-                project.cflags += [
-                    "-fvara-instr=usdt"
-                ]
+                project.cflags += ["-fvara-instr=usdt"]
             elif self.TRACE_BINARIES:
-                project.cflags += [
-                    "-fvara-instr=trace_event"
-                ]
+                project.cflags += ["-fvara-instr=trace_event"]
 
             project.cflags += ["-flto", "-fuse-ld=lld"]
             project.ldflags += ["-flto"]
@@ -229,9 +256,12 @@ class FeatureDryTime(VersionExperiment, shorthand="FDT"):
         analysis_actions = []
         analysis_actions.append(actions.Compile(project))
 
-        analysis_actions.append(ExecWithTime(
-            project, self.get_handle(), 100,
-            self.TRACE_BINARIES and self.USE_USDT))
+        analysis_actions.append(
+            ExecWithTime(
+                project, self.get_handle(), 5, self.TRACE_BINARIES and
+                self.USE_USDT
+            )
+        )
 
         analysis_actions.append(actions.Clean(project))
 

@@ -228,6 +228,16 @@ class TimeReportAggregate(
         return np.std(self.wall_clock_times)
 
     @property
+    def wall_clock_time_min(self) -> float:
+
+        return np.min(self.wall_clock_times)
+
+    @property
+    def wall_clock_time_max(self) -> float:
+
+        return np.max(self.wall_clock_times)
+
+    @property
     def summary(self) -> str:
         return f"num_reports = {len(self.reports)}\n" \
             f"mean(wall_clock_time) = {self.mean_wall_clock_time}\n" \

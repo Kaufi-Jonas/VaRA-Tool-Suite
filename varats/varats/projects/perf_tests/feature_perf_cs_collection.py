@@ -29,7 +29,7 @@ class FeaturePerfCSCollection(VProject):
 
     SOURCE = [
         bb.source.Git(
-            remote="https://github.com/se-sic/FeaturePerfCSCollection.git",
+            remote="https://github.com/Kaufi-Jonas/FeaturePerfCSCollection.git",
             local="FeaturePerfCSCollection",
             refspec="origin/HEAD",
             limit=None,
@@ -57,12 +57,16 @@ class FeaturePerfCSCollection(VProject):
         binary_map.specify_binary(
             "build/bin/SimpleSleepLoop",
             BinaryType.EXECUTABLE,
-            only_valid_in=RevisionRange("ae9f5492e5f9534c5ec5b99ca0ab1e98ee978813", "master")
+            only_valid_in=RevisionRange(
+                "ae9f5492e5f9534c5ec5b99ca0ab1e98ee978813", "master"
+            )
         )
         binary_map.specify_binary(
             "build/bin/SimpleBusyLoop",
             BinaryType.EXECUTABLE,
-            only_valid_in=RevisionRange("ae9f5492e5f9534c5ec5b99ca0ab1e98ee978813", "master")
+            only_valid_in=RevisionRange(
+                "ae9f5492e5f9534c5ec5b99ca0ab1e98ee978813", "master"
+            )
         )
 
         return binary_map[revision]

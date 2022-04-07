@@ -6,7 +6,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-from joblib import PrintTime
 
 from varats.paper_mgmt.case_study import get_case_study_file_name_filter
 from varats.paper_mgmt.paper_config import get_loaded_paper_config
@@ -34,7 +33,7 @@ class TimeBoxPlot(Plot, plot_name="time_boxplot"):
             project_name = case_study.project_name
 
             report_files = get_processed_revisions_files(
-                case_study.project_name, TimeReportAggregate,
+                project_name, TimeReportAggregate,
                 get_case_study_file_name_filter(case_study), False
             )
 
