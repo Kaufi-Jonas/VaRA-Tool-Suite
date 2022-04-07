@@ -176,6 +176,13 @@ class ExecWithTime(actions.Step):  # type: ignore
                         # Send CTRL+C to stop bpftrace running in background.
                         if self.__usdt:
                             bpftrace_proc: Popen = bpftrace_runner.proc
+
+                            if bpftrace_runner.poll():
+                                print(bpftrace_runner.stderr)
+                                raise RuntimeError(
+                                    "'bpftrace' quit unexpectedly."
+                                )
+
                             process = Process(bpftrace_proc.pid)
                             subprocesses = process.children()
 
