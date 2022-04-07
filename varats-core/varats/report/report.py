@@ -575,8 +575,8 @@ class ReportAggregate(
 
         # Create a temporary directory for extraction and register finalizer,
         # which will clean it up.
-        self.__tmpdir = TemporaryDirectory()
-        self.__finalizer = weakref.finalize(self, self.__tmpdir.cleanup)  # pylint: disable=R1732
+        self.__tmpdir = TemporaryDirectory()  # pylint: disable=R1732
+        self.__finalizer = weakref.finalize(self, self.__tmpdir.cleanup)
 
         # Extract archive and parse reports.
         if self.path.exists():
