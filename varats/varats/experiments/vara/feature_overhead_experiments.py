@@ -2,7 +2,6 @@
 instrumenting binaries produced by a project."""
 import typing as tp
 from pathlib import Path
-from signal import SIGINT
 from subprocess import Popen
 from time import sleep
 
@@ -258,7 +257,7 @@ class FeatureDryTime(VersionExperiment, shorthand="FDT"):
 
         analysis_actions.append(
             ExecWithTime(
-                project, self.get_handle(), 5, self.TRACE_BINARIES and
+                project, self.get_handle(), 100, self.TRACE_BINARIES and
                 self.USE_USDT
             )
         )
