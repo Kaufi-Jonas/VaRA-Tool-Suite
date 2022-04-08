@@ -2,14 +2,13 @@
 instrumenting binaries produced by a project."""
 import typing as tp
 from pathlib import Path
-from subprocess import Popen
 from time import sleep
 
 from benchbuild import Project
 from benchbuild.extensions import compiler, run
 from benchbuild.extensions import time as bbtime
 from benchbuild.utils import actions
-from benchbuild.utils.cmd import time, bpftrace, echo, kill
+from benchbuild.utils.cmd import time, bpftrace
 from plumbum import BG, FG, local
 from plumbum.commands.modifiers import Future
 from psutil import Process
@@ -53,9 +52,6 @@ class ExecWithTime(actions.Step):  # type: ignore
             "/home/jonask/Repos/WorkloadsForConfigurableSystems/brotli/countries-land-1km.geo.json"
         ]
     }
-
-    # Hack: Wait for sudo password to be entered
-    sudo_password_entered = False
 
     def __init__(
         self,
@@ -138,9 +134,11 @@ class ExecWithTime(actions.Step):  # type: ignore
                         time_tmp, f"time_iteration_{i}.{TimeReport.FILE_TYPE}"
                     )
 
-                    # Generate run command.
+                    # 'BPFTRACE_PERF_RB_PAGES=128' increases size of perf ring
+                    # buffer to prevent events from being dropped.
                     with local.cwd(project.source_of_primary), \
-                            local.env(VARA_TRACE_FILE=tef_report_file):
+                            local.env(VARA_TRACE_FILE=tef_report_file), \
+                            local.env(BPFTRACE_PERF_RB_PAGES=128):
                         run_cmd = binary[workload]
                         run_cmd = time["-v", "-o", time_report_file, run_cmd]
 
@@ -153,42 +151,20 @@ class ExecWithTime(actions.Step):  # type: ignore
                                 "tools/perf_bpf_tracing/UsdtTefMarker.bt"
                             )
 
+                            # Assertion: Can be run without sudo password prompt.
                             bpftrace_cmd = bpftrace["-o", tef_report_file, "-q",
                                                     bpftrace_script,
                                                     binary.path]
-
                             with local.as_root():
-                                # Make user input sudo password in the
-                                # foreground with the goal that this won't be
-                                # necessary later when bpftrace is running in
-                                # the background.
-                                if not ExecWithTime.sudo_password_entered:
-                                    ExecWithTime.sudo_password_entered = True
-                                    echo["Triggered sudo password input via 'echo'."
-                                        ] & FG
-
                                 bpftrace_runner = bpftrace_cmd & BG
-                                sleep(1)  # give bpftrace time to start up
+
+                            sleep(1)  # give bpftrace time to start up
 
                         # Run.
                         run_cmd & FG
 
-                        # Send CTRL+C to stop bpftrace running in background.
+                        # Wait for bpftrace running in background to exit.
                         if self.__usdt:
-                            bpftrace_proc: Popen = bpftrace_runner.proc
-
-                            if bpftrace_runner.poll():
-                                print(bpftrace_runner.stderr)
-                                raise RuntimeError(
-                                    "'bpftrace' quit unexpectedly."
-                                )
-
-                            process = Process(bpftrace_proc.pid)
-                            subprocesses = process.children()
-
-                            with local.as_root():
-                                kill("-s", "SIGINT", subprocesses[0].pid)
-
                             bpftrace_runner.wait()
 
         return actions.StepResult.OK
