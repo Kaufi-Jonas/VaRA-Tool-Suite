@@ -11,7 +11,6 @@ from benchbuild.utils import actions
 from benchbuild.utils.cmd import time, bpftrace
 from plumbum import BG, FG, local
 from plumbum.commands.modifiers import Future
-from psutil import Process
 
 from varats.data.reports.empty_report import EmptyReport
 from varats.experiment.experiment_util import (
@@ -41,8 +40,8 @@ class ExecWithTime(actions.Step):  # type: ignore
     DESCRIPTION = "Executes each binary and measures its runtime using `time`."
 
     WORKLOADS = {
-        "SimpleSleepLoop": ["--iterations", "1000", "--sleepms", "5"],
-        "SimpleBusyLoop": ["--iterations", "1000", "--count_to", "10000000"],
+        "SimpleSleepLoop": ["--iterations", "100000", "--sleepns", "50000"],
+        "SimpleBusyLoop": ["--iterations", "100000", "--count_to", "100000"],
         "xz": [
             "-k", "-f", "-9e", "--compress", "--threads=8", "--format=xz",
             "/home/jonask/Repos/WorkloadsForConfigurableSystems/xz/countries-land-1km.geo.json"
@@ -134,11 +133,10 @@ class ExecWithTime(actions.Step):  # type: ignore
                         time_tmp, f"time_iteration_{i}.{TimeReport.FILE_TYPE}"
                     )
 
-                    # 'BPFTRACE_PERF_RB_PAGES=128' increases size of perf ring
+                    # 'BPFTRACE_PERF_RB_PAGES=x' increases size of perf ring
                     # buffer to prevent events from being dropped.
                     with local.cwd(project.source_of_primary), \
-                            local.env(VARA_TRACE_FILE=tef_report_file), \
-                            local.env(BPFTRACE_PERF_RB_PAGES=128):
+                            local.env(VARA_TRACE_FILE=tef_report_file, BPFTRACE_PERF_RB_PAGES=4096):
                         run_cmd = binary[workload]
                         run_cmd = time["-v", "-o", time_report_file, run_cmd]
 
@@ -152,7 +150,8 @@ class ExecWithTime(actions.Step):  # type: ignore
                             )
 
                             # Assertion: Can be run without sudo password prompt.
-                            bpftrace_cmd = bpftrace["-o", tef_report_file, "-q",
+                            bpftrace_cmd = bpftrace["-o", tef_report_file, "-B",
+                                                    "full", "-q",
                                                     bpftrace_script,
                                                     binary.path]
                             with local.as_root():
