@@ -8,7 +8,7 @@ from benchbuild import Project
 from benchbuild.extensions import compiler, run
 from benchbuild.extensions import time as bbtime
 from benchbuild.utils import actions
-from benchbuild.utils.cmd import time, bpftrace
+from benchbuild.utils.cmd import time
 from plumbum import BG, FG, local
 from plumbum.commands.modifiers import Future
 
@@ -47,7 +47,7 @@ class ExecWithTime(actions.Step):  # type: ignore
             "/home/jonask/Repos/WorkloadsForConfigurableSystems/xz/countries-land-1km.geo.json"
         ],
         "brotli": [
-            "-f", "-k", "-o", "/tmp/brotli_compression_test.br", "--best",
+            "-f", "-o", "/tmp/brotli_compression_test.br",
             "/home/jonask/Repos/WorkloadsForConfigurableSystems/brotli/countries-land-1km.geo.json"
         ]
     }
@@ -133,38 +133,35 @@ class ExecWithTime(actions.Step):  # type: ignore
                         time_tmp, f"time_iteration_{i}.{TimeReport.FILE_TYPE}"
                     )
 
-                    # 'BPFTRACE_PERF_RB_PAGES=x' increases size of perf ring
-                    # buffer to prevent events from being dropped.
                     with local.cwd(project.source_of_primary), \
-                            local.env(VARA_TRACE_FILE=tef_report_file, BPFTRACE_PERF_RB_PAGES=4096):
+                            local.env(VARA_TRACE_FILE=tef_report_file):
                         run_cmd = binary[workload]
                         run_cmd = time["-v", "-o", time_report_file, run_cmd]
 
-                        # Attach bpftrace script to activate USDT markers.
-                        bpftrace_runner: Future
+                        # Attach bcc script to activate USDT probes.
+                        bcc_runner: Future
                         if self.__usdt:
-                            # attach bpftrace to binary to allow tracing it via USDT
-                            bpftrace_script = Path(
+                            bcc_script_location = Path(
                                 VaRA.install_location(),
-                                "tools/perf_bpf_tracing/UsdtTefMarker.bt"
+                                "tools/perf_bpf_tracing/UsdtTefMarker.py"
                             )
+                            bcc_script = local[str(bcc_script_location)]
 
                             # Assertion: Can be run without sudo password prompt.
-                            bpftrace_cmd = bpftrace["-o", tef_report_file, "-B",
-                                                    "full", "-q",
-                                                    bpftrace_script,
-                                                    binary.path]
+                            bcc_cmd = bcc_script["--output_file",
+                                                 tef_report_file, "--no_poll",
+                                                 "--executable", binary.path]
                             with local.as_root():
-                                bpftrace_runner = bpftrace_cmd & BG
+                                bcc_runner = bcc_cmd & BG
 
-                            sleep(1)  # give bpftrace time to start up
+                            sleep(1)  # give bcc script time to start up
 
                         # Run.
                         run_cmd & FG
 
-                        # Wait for bpftrace running in background to exit.
+                        # Wait for bcc running in background to exit.
                         if self.__usdt:
-                            bpftrace_runner.wait()
+                            bcc_runner.wait()
 
         return actions.StepResult.OK
 
