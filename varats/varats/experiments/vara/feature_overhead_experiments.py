@@ -1,5 +1,5 @@
-"""Module for experiments that measure the runtime overhead introduced by
-instrumenting binaries produced by a project."""
+"""Module for experiments that measure the runtime overhead of instrumenting
+binaries."""
 import typing as tp
 from pathlib import Path
 from time import sleep
@@ -8,17 +8,15 @@ from benchbuild import Project
 from benchbuild.extensions import compiler, run
 from benchbuild.extensions import time as bbtime
 from benchbuild.utils import actions
-from benchbuild.utils.cmd import time
+from benchbuild.utils.cmd import time, perf
 from plumbum import BG, FG, local
 from plumbum.commands.modifiers import Future
 
-from varats.data.reports.empty_report import EmptyReport
 from varats.experiment.experiment_util import (
     ExperimentHandle,
     ZippedReportFolder,
     get_varats_result_folder,
     VersionExperiment,
-    get_default_compile_error_wrapped,
 )
 from varats.project.project_util import ProjectBinaryWrapper, BinaryType
 from varats.provider.feature.feature_model_provider import (
@@ -27,6 +25,7 @@ from varats.provider.feature.feature_model_provider import (
 )
 from varats.provider.workload.workload_provider import WorkloadProvider
 from varats.report.gnu_time_report import TimeReport, TimeReportAggregate
+from varats.report.perf_stat_report import PerfStatReport
 from varats.report.report import FileStatusExtension, ReportSpecification
 from varats.report.tef_report import TEFReport, TEFReportAggregate
 from varats.tools.research_tools.vara import VaRA
@@ -132,20 +131,9 @@ class ExecWithTime(actions.Step):  # type: ignore
                         # Attach bcc script to activate USDT probes.
                         bcc_runner: Future
                         if self.__usdt:
-                            bcc_script_location = Path(
-                                VaRA.install_location(),
-                                "tools/perf_bpf_tracing/UsdtTefMarker.py"
+                            bcc_runner = ExecWithTime.attach_bcc_tef_script(
+                                tef_report_file, binary.path
                             )
-                            bcc_script = local[str(bcc_script_location)]
-
-                            # Assertion: Can be run without sudo password prompt.
-                            bcc_cmd = bcc_script["--output_file",
-                                                 tef_report_file, "--no_poll",
-                                                 "--executable", binary.path]
-                            with local.as_root():
-                                bcc_runner = bcc_cmd & BG
-
-                            sleep(1)  # give bcc script time to start up
 
                         # Run.
                         run_cmd & FG
@@ -153,6 +141,94 @@ class ExecWithTime(actions.Step):  # type: ignore
                         # Wait for bcc running in background to exit.
                         if self.__usdt:
                             bcc_runner.wait()
+
+        return actions.StepResult.OK
+
+    @staticmethod
+    def attach_bcc_tef_script(report_file: Path, binary: Path) -> Future:
+        # Attach bcc script to activate USDT probes.
+        bcc_script_location = Path(
+            VaRA.install_location(), "tools/perf_bpf_tracing/UsdtTefMarker.py"
+        )
+        bcc_script = local[str(bcc_script_location)]
+
+        # Assertion: Can be run without sudo password prompt.
+        bcc_cmd = bcc_script["--output_file", report_file, "--no_poll",
+                             "--executable", binary]
+        with local.as_root():
+            bcc_runner = bcc_cmd & BG
+            sleep(1)  # give bcc script time to start up
+            return bcc_runner
+
+
+class TraceSyscalls(actions.Step):
+    NAME = "TraceSyscalls"
+    DESCRIPTION = "Executes the binaries with a specified workload, attaches the tracer and measures the number of syscalls."
+
+    def __init__(
+        self,
+        project: Project,
+        experiment_handle: ExperimentHandle,
+        usdt: bool = False
+    ):
+        super().__init__(obj=project, action_fn=self.run)
+        self.__experiment_handle = experiment_handle
+        self.__usdt = usdt
+
+    def run(self) -> actions.StepResult:
+        project: Project = self.obj
+
+        vara_result_folder = get_varats_result_folder(project)
+        binary: ProjectBinaryWrapper
+
+        for binary in project.binaries:
+            if binary.type != BinaryType.EXECUTABLE:
+                continue
+
+            # Get workload to use.
+            workload_provider = WorkloadProvider.create_provider_for_project(
+                project
+            )
+            workload = workload_provider.get_workload_for_binary(binary.name)
+            if (workload == None):
+                continue
+
+            # Print progress.
+            print(f"Tracing syscalls. Binary={binary.name}", flush=True)
+
+            # Path for report.
+            report_file_name = self.__experiment_handle.get_file_name(
+                PerfStatReport.shorthand(),
+                project_name=project.name,
+                binary_name=binary.name,
+                project_revision=project.version_of_primary,
+                project_uuid=str(project.run_uuid),
+                extension_type=FileStatusExtension.SUCCESS
+            )
+
+            report_file = Path(vara_result_folder, str(report_file_name))
+
+            # Execute binary.
+            with local.cwd(project.source_of_primary), \
+                    local.env(VARA_TRACE_FILE="/dev/null"):
+                run_cmd = binary[workload]
+                run_cmd = perf["stat", "-e", "syscalls:sys_enter_*", "-o",
+                               report_file, run_cmd]
+
+                # Attach bcc script to activate USDT probes.
+                bcc_runner: Future
+                if self.__usdt:
+                    bcc_runner = ExecWithTime.attach_bcc_tef_script(
+                        Path("/dev/null"), binary.path
+                    )
+
+                # Run (perf requires root in this co).
+                with local.as_root():
+                    run_cmd & FG
+
+                # Wait for bcc running in background to exit.
+                if self.__usdt:
+                    bcc_runner.wait()
 
         return actions.StepResult.OK
 
@@ -164,7 +240,7 @@ class FeatureDryTime(VersionExperiment, shorthand="FDT"):
     NAME = "FeatureDryTime"
 
     REPORT_SPEC = ReportSpecification(
-        EmptyReport, TimeReportAggregate, TEFReportAggregate
+        TimeReportAggregate, TEFReportAggregate, PerfStatReport
     )
 
     # Indicate whether to trace binaries and whether USDT markers should be used
@@ -217,14 +293,15 @@ class FeatureDryTime(VersionExperiment, shorthand="FDT"):
         project.compiler_extension = compiler.RunCompiler(project, self) \
             << run.WithTimeout()
 
-        # Add own error handler to compile step.
-        project.compile = get_default_compile_error_wrapped(
-            self.get_handle(), project, EmptyReport
-        )
-
         analysis_actions = []
         analysis_actions.append(actions.Compile(project))
 
+        analysis_actions.append(
+            TraceSyscalls(
+                project, self.get_handle(), self.TRACE_BINARIES and
+                self.USE_USDT
+            )
+        )
         analysis_actions.append(
             ExecWithTime(
                 project, self.get_handle(), 100, self.TRACE_BINARIES and
