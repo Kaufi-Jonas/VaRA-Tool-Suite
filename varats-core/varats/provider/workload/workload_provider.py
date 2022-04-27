@@ -24,24 +24,21 @@ class WorkloadProvider(Provider):
         f"{FeaturePerfCSCollection.NAME},SimpleBusyLoop": [
             "--iterations", "100000", "--count_to", "100000"
         ],
-        f"{FeaturePerfCSCollection.NAME},MultipleRegionsTypedef": [
-            "--slow1", "--slow2"
-        ],
         f"{Xz.NAME},xz": [
             "-k", "-f", "-9e", "--compress", "--threads=8", "--format=xz",
-            "/home/jonask/Repos/WorkloadsForConfigurableSystems/xz/countries-land-1km.geo.json"
+            "/home/jonask/Repos/WorkloadsForConfigurableSystems/compression/countries-land-1km.geo.json"
         ],
         f"{Brotli.NAME},brotli": [
             "-f", "-o", "/tmp/brotli_compression_test.br",
-            "/home/jonask/Repos/WorkloadsForConfigurableSystems/brotli/countries-land-1km.geo.json"
+            "/home/jonask/Repos/WorkloadsForConfigurableSystems/compression/countries-land-1km.geo.json"
         ],
         f"{Bzip2.NAME},bzip2": [
             "--compress", "--best", "--verbose", "--keep", "--force",
-            "/home/jonask/Repos/WorkloadsForConfigurableSystems/bzip2/countries-land-1m.geo.json"
+            "/home/jonask/Repos/WorkloadsForConfigurableSystems/compression/countries-land-1m.geo.json"
         ],
         f"{Gzip.NAME},gzip": [
             "--force", "--keep", "--name", "--recursive", "--verbose", "--best",
-            "/home/jonask/Repos/WorkloadsForConfigurableSystems/gzip/countries-land-10km.geo.json"
+            "/home/jonask/Repos/WorkloadsForConfigurableSystems/compression/countries-land-10km.geo.json"
         ],
     }
 
