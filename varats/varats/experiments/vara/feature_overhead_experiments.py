@@ -25,6 +25,7 @@ from varats.provider.feature.feature_model_provider import (
     FeatureModelProvider,
     FeatureModelNotFound,
 )
+from varats.provider.workload.workload_provider import WorkloadProvider
 from varats.report.gnu_time_report import TimeReport, TimeReportAggregate
 from varats.report.report import FileStatusExtension, ReportSpecification
 from varats.report.tef_report import TEFReport, TEFReportAggregate
@@ -38,19 +39,6 @@ class ExecWithTime(actions.Step):  # type: ignore
 
     NAME = "ExecWithTime"
     DESCRIPTION = "Executes each binary and measures its runtime using `time`."
-
-    WORKLOADS = {
-        "SimpleSleepLoop": ["--iterations", "100000", "--sleepns", "50000"],
-        "SimpleBusyLoop": ["--iterations", "100000", "--count_to", "100000"],
-        "xz": [
-            "-k", "-f", "-9e", "--compress", "--threads=8", "--format=xz",
-            "/home/jonask/Repos/WorkloadsForConfigurableSystems/xz/countries-land-1km.geo.json"
-        ],
-        "brotli": [
-            "-f", "-o", "/tmp/brotli_compression_test.br",
-            "/home/jonask/Repos/WorkloadsForConfigurableSystems/brotli/countries-land-1km.geo.json"
-        ]
-    }
 
     def __init__(
         self,
@@ -77,7 +65,10 @@ class ExecWithTime(actions.Step):  # type: ignore
                 continue
 
             # Get workload to use.
-            workload = self.WORKLOADS.get(binary.name, None)
+            workload_provider = WorkloadProvider.create_provider_for_project(
+                project
+            )
+            workload = workload_provider.get_workload_for_binary(binary.name)
             if (workload == None):
                 print(
                     f"No workload for project={project.name} binary={binary.name}. Skipping."
@@ -87,7 +78,7 @@ class ExecWithTime(actions.Step):  # type: ignore
             # Assemble Path for TEF report.
             tef_report_file_name = self.__experiment_handle.get_file_name(
                 TEFReportAggregate.shorthand(),
-                project_name=str(project.name),
+                project_name=project.name,
                 binary_name=binary.name,
                 project_revision=project.version_of_primary,
                 project_uuid=str(project.run_uuid),
@@ -101,7 +92,7 @@ class ExecWithTime(actions.Step):  # type: ignore
             # Assemble Path for time report.
             time_report_file_name = self.__experiment_handle.get_file_name(
                 TimeReportAggregate.shorthand(),
-                project_name=str(project.name),
+                project_name=project.name,
                 binary_name=binary.name,
                 project_revision=project.version_of_primary,
                 project_uuid=str(project.run_uuid),
