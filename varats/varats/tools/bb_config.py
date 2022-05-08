@@ -105,6 +105,7 @@ def create_new_bb_config(
         'varats.experiments.vara.commit_report_experiment',
         'varats.experiments.vara.feature_perf_runner',
         'varats.experiments.vara.feature_overhead_experiments',
+        'varats.experiments.vara.instrumentation_point_printer',
         'varats.experiments.vara.marker_tester',
         'varats.experiments.vara.blame_verifier_experiment',
         'varats.experiments.vara.phasar_fta',
