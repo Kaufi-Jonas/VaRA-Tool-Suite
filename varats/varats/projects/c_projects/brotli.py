@@ -30,7 +30,7 @@ class Brotli(VProject):
     SOURCE = [
         PaperConfigSpecificGit(
             project_name="brotli",
-            remote="https://github.com/Kaufi-Jonas/brotli.git",
+            remote="https://github.com/google/brotli.git",
             local="brotli_git",
             refspec="origin/HEAD",
             limit=None,

@@ -29,7 +29,7 @@ from varats.report.report import FileStatusExtension, ReportSpecification
 from varats.tools.research_tools.vara import VaRA
 
 
-class WriteUsdtStats(actions.Step):
+class WriteUsdtStats(actions.Step):  # type: ignore
     NAME = "WriteUsdtStats"
     DESCRIPTION = "Executes each binary and collects runtime statistics using VaRA's probes and a bpftrace script."
 
@@ -103,7 +103,7 @@ class UsdtExecStats(VersionExperiment, shorthand="VUS"):
     """Runner for capturing execution statistics using VaRA's USDT based
     instrumentation."""
 
-    NAME = "VaraUsdtStats"
+    NAME = "UsdtStats"
 
     REPORT_SPEC = ReportSpecification(EmptyReport)
 

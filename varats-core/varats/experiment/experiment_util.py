@@ -13,7 +13,7 @@ from types import TracebackType
 from benchbuild import source
 from benchbuild.experiment import Experiment
 from benchbuild.project import Project
-from benchbuild.utils.actions import Step, StepResult
+from benchbuild.utils.actions import Step
 from benchbuild.utils.cmd import prlimit, mkdir
 from plumbum.commands import ProcessExecutionError
 
@@ -496,7 +496,6 @@ class ZippedReportFolder(TempDir):
     def __init__(self, result_report_path: Path) -> None:
         super().__init__()
         self.__result_report_name: Path = result_report_path.with_suffix('')
-        self.__zipfile = result_report_path.with_suffix(".zip")
 
     def __exit__(
         self, exc_type: tp.Optional[tp.Type[BaseException]],
@@ -510,7 +509,3 @@ class ZippedReportFolder(TempDir):
             )
 
         super().__exit__(exc_type, exc_value, exc_traceback)
-
-    @property
-    def zipfile(self) -> Path:
-        return self.__zipfile
