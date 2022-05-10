@@ -148,7 +148,8 @@ class ExecWithTime(actions.Step):  # type: ignore
     def attach_bcc_tef_script(report_file: Path, binary: Path) -> Future:
         # Attach bcc script to activate USDT probes.
         bcc_script_location = Path(
-            VaRA.install_location(), "tools/perf_bpf_tracing/UsdtTefMarker.py"
+            VaRA.install_location(),
+            "share/vara/perf_bpf_tracing/UsdtTefMarker.py"
         )
         bcc_script = local[str(bcc_script_location)]
 
@@ -163,7 +164,8 @@ class ExecWithTime(actions.Step):  # type: ignore
 
 class TraceSyscalls(actions.Step):
     NAME = "TraceSyscalls"
-    DESCRIPTION = "Executes the binaries with a specified workload, attaches the tracer and measures the number of syscalls."
+    DESCRIPTION = "Executes the binaries with a specified workload, attaches " \
+        "the tracer and measures the number of syscalls."
 
     def __init__(
         self,
