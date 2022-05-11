@@ -36,6 +36,7 @@ class WorkloadProvider(Provider):
         ],
         f"{Xz.NAME},xz": [
             "-k", "-f", "-9e", "--compress", "--threads=8", "--format=xz",
+            "-vv",
             str(WORKLOADS_BASE_DIR / "compression/countries-land-1km.geo.json")
         ],
         f"{Brotli.NAME},brotli": [

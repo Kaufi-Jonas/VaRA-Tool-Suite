@@ -31,7 +31,7 @@ from varats.report.tef_report import TEFReport, TEFReportAggregate
 from varats.tools.research_tools.vara import VaRA
 
 
-class ExecWithTime(actions.Step):  # type: ignore
+class TraceWithTime(actions.Step):  # type: ignore
     """Executes the specified binaries of the project, in specific
     configurations, against one or multiple workloads and with or without
     feature tracing."""
@@ -139,7 +139,7 @@ class ExecWithTime(actions.Step):  # type: ignore
                         # Attach bcc script to activate USDT probes.
                         bcc_runner: Future
                         if self.__usdt:
-                            bcc_runner = ExecWithTime.attach_bcc_tef_script(
+                            bcc_runner = TraceWithTime.attach_bcc_tef_script(
                                 tef_report_file, binary.path
                             )
 
@@ -249,7 +249,7 @@ class CapturePerfStats(actions.Step):
                 # Attach bcc script to activate USDT probes.
                 bcc_runner: Future
                 if self.__usdt:
-                    bcc_runner = ExecWithTime.attach_bcc_tef_script(
+                    bcc_runner = TraceWithTime.attach_bcc_tef_script(
                         Path("/dev/null"), binary.path
                     )
 
@@ -334,7 +334,7 @@ class FeatureDryTime(VersionExperiment, shorthand="FDT"):
             )
         )
         analysis_actions.append(
-            ExecWithTime(
+            TraceWithTime(
                 project, self.get_handle(), 100, self.TRACE_BINARIES and
                 self.USE_USDT
             )
