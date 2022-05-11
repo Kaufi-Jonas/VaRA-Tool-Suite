@@ -64,13 +64,21 @@ class ExecWithTime(actions.Step):  # type: ignore
                 continue
 
             # Get workload to use.
+            # TODO (se-sic/VaRA#841): refactor to bb workloads if possible
             workload_provider = WorkloadProvider.create_provider_for_project(
                 project
             )
-            workload = workload_provider.get_workload_for_binary(binary.name)
-            if (workload == None):
+            if not workload_provider:
                 print(
-                    f"No workload for project={project.name} binary={binary.name}. Skipping."
+                    f"No workload provider for project={project.name}. " \
+                    "Skipping."
+                )
+                return actions.StepResult.CAN_CONTINUE
+            workload = workload_provider.get_workload_for_binary(binary.name)
+            if workload is None:
+                print(
+                    f"No workload for project={project.name} " \
+                        f"binary={binary.name}. Skipping."
                 )
                 continue
 
@@ -190,17 +198,27 @@ class CapturePerfStats(actions.Step):
             if binary.type != BinaryType.EXECUTABLE:
                 continue
 
+            # Print progress.
+            print(f"Capturing perf stats. Binary={binary.name}", flush=True)
+
             # Get workload to use.
+            # TODO (se-sic/VaRA#841): refactor to bb workloads if possible
             workload_provider = WorkloadProvider.create_provider_for_project(
                 project
             )
+            if not workload_provider:
+                print(
+                    f"No workload provider for project={project.name}. " \
+                    "Skipping."
+                )
+                return actions.StepResult.CAN_CONTINUE
             workload = workload_provider.get_workload_for_binary(binary.name)
-            if (workload == None):
-                continue
-
-            # Print progress.
-            print(f"Tracing syscalls. Binary={binary.name}", flush=True)
-
+            if workload is None:
+                print(
+                    f"No workload for project={project.name} " \
+                        f"binary={binary.name}. Skipping."
+                )
+            #     continue
             # Path for report.
             report_file_name = self.__experiment_handle.get_file_name(
                 PerfStatReport.shorthand(),
