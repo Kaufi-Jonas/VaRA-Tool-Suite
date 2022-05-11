@@ -162,10 +162,13 @@ class ExecWithTime(actions.Step):  # type: ignore
             return bcc_runner
 
 
-class TraceSyscalls(actions.Step):
-    NAME = "TraceSyscalls"
-    DESCRIPTION = "Executes the binaries with a specified workload, attaches " \
-        "the tracer and measures the number of syscalls."
+class CapturePerfStats(actions.Step):
+    """Executes the binaries with the specified workload and while tracing them,
+    collects information using `perf stat`"""
+
+    NAME = "CapturePerfStats"
+    DESCRIPTION = "Executes the binaries with the specified workload and " \
+        "while tracing them, collects information using `perf stat`"
 
     def __init__(
         self,
@@ -214,8 +217,16 @@ class TraceSyscalls(actions.Step):
             with local.cwd(project.source_of_primary), \
                     local.env(VARA_TRACE_FILE="/dev/null"):
                 run_cmd = binary[workload]
-                run_cmd = perf["stat", "-e", "syscalls:sys_enter_*", "-o",
-                               report_file, run_cmd]
+                run_cmd = perf["stat", "-e", "context-switches", "-e",
+                               "cpu-migrations", "-e", "page-faults", "-e",
+                               "cycles", "-e", "stalled-cycles-frontend", "-e",
+                               "stalled-cycles-backend", "-e", "instructions",
+                               "-e", "branches", "-e", "branch-misses", "-e",
+                               "L1-dcache-loads", "-e", "L1-dcache-load-misses",
+                               "-e", "LLC-loads", "-e", "LLC-load-misses", "-e",
+                               "raw_syscalls:sys_enter", "-e",
+                               "syscalls:sys_enter_*", "-o", report_file,
+                               run_cmd]
 
                 # Attach bcc script to activate USDT probes.
                 bcc_runner: Future
@@ -299,7 +310,7 @@ class FeatureDryTime(VersionExperiment, shorthand="FDT"):
         analysis_actions.append(actions.Compile(project))
 
         analysis_actions.append(
-            TraceSyscalls(
+            CapturePerfStats(
                 project, self.get_handle(), self.TRACE_BINARIES and
                 self.USE_USDT
             )
