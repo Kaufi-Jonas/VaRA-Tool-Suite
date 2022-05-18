@@ -29,10 +29,10 @@ class WorkloadProvider(Provider):
     )
     WORKLOADS = {
         f"{FeaturePerfCSCollection.NAME},SimpleSleepLoop": [
-            "--iterations", "100000", "--sleepns", "50000"
+            "--iterations", str(10**5), "--sleepns", "1000"
         ],
         f"{FeaturePerfCSCollection.NAME},SimpleBusyLoop": [
-            "--iterations", "100000", "--count_to", "100000"
+            "--iterations", str(10**7), "--count_to", "1000"
         ],
         f"{Xz.NAME},xz": [
             "-k", "-f", "-9e", "--compress", "--threads=8", "--format=xz",

@@ -84,7 +84,7 @@ class TraceWithTime(actions.Step):  # type: ignore
 
             # Assemble Path for TEF report.
             tef_report_file_name = self.__experiment_handle.get_file_name(
-                TEFReportAggregate.shorthand(),
+                TEFReport.shorthand(),
                 project_name=project.name,
                 binary_name=binary.name,
                 project_revision=project.version_of_primary,
@@ -111,9 +111,7 @@ class TraceWithTime(actions.Step):  # type: ignore
             )
 
             # Execute binary.
-            with ZippedReportFolder(tef_report_file) as tef_tmp, \
-                    ZippedReportFolder(time_report_file) as time_tmp:
-
+            with ZippedReportFolder(time_report_file) as time_tmp:
                 for i in range(self.__num_iterations):
 
                     # Print progress.
@@ -124,9 +122,6 @@ class TraceWithTime(actions.Step):  # type: ignore
                     )
 
                     # Generate report file names.
-                    tef_report_file = Path(
-                        tef_tmp, f"tef_iteration_{i}.{TEFReport.FILE_TYPE}"
-                    )
                     time_report_file = Path(
                         time_tmp, f"time_iteration_{i}.{TimeReport.FILE_TYPE}"
                     )
@@ -211,14 +206,16 @@ class CapturePerfStats(actions.Step):
                     f"No workload provider for project={project.name}. " \
                     "Skipping."
                 )
-                return actions.StepResult.CAN_CONTINUE
+                return actions.StepResult.ERROR
+
             workload = workload_provider.get_workload_for_binary(binary.name)
             if workload is None:
                 print(
                     f"No workload for project={project.name} " \
                         f"binary={binary.name}. Skipping."
                 )
-            #     continue
+                continue
+
             # Path for report.
             report_file_name = self.__experiment_handle.get_file_name(
                 PerfStatReport.shorthand(),
@@ -271,7 +268,7 @@ class FeatureDryTime(VersionExperiment, shorthand="FDT"):
     NAME = "FeatureDryTime"
 
     REPORT_SPEC = ReportSpecification(
-        TimeReportAggregate, TEFReportAggregate, PerfStatReport
+        TimeReportAggregate, TEFReport, PerfStatReport
     )
 
     # Indicate whether to trace binaries and whether USDT markers should be used
