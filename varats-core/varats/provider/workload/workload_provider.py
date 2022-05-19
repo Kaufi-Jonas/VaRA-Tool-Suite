@@ -54,7 +54,7 @@ class WorkloadProvider(Provider):
         f"{Gzip.NAME},gzip": [
             "--force", "--keep", "--name", "--recursive", "--verbose", "--best",
             str(
-                WORKLOADS_BASE_DIR / "compression/countries-land-10km.geo.json"
+                WORKLOADS_BASE_DIR / "compression/countries-land-250m.geo.json"
             )
         ],
     }
