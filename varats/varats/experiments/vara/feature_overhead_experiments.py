@@ -332,7 +332,7 @@ class FeatureDryTime(VersionExperiment, shorthand="FDT"):
         )
         analysis_actions.append(
             TraceWithTime(
-                project, self.get_handle(), 100, self.TRACE_BINARIES and
+                project, self.get_handle(), 20, self.TRACE_BINARIES and
                 self.USE_USDT
             )
         )

@@ -30,18 +30,20 @@ class WorkloadProvider(Provider):
     WORKLOADS = {
         f"{FeaturePerfCSCollection.NAME},SimpleSleepLoop": [
             "--iterations",
-            str(2 * 10**5), "--sleepns",
+            str(5 * 10**5), "--sleepns",
             str(10**3)
         ],
         f"{FeaturePerfCSCollection.NAME},SimpleBusyLoop": [
             "--iterations",
-            str(2 * 10**5), "--count_to",
-            str(10**5)
+            str(4 * 10**6), "--count_to",
+            str(10**4)
         ],
         f"{Xz.NAME},xz": [
-            "-k", "-f", "-9e", "--compress", "--threads=8", "--format=xz",
+            "-k", "-f", "-9e", "--compress", "--threads=0", "--format=xz",
             "-vv",
-            str(WORKLOADS_BASE_DIR / "compression/countries-land-1km.geo.json")
+            str(
+                WORKLOADS_BASE_DIR / "compression/countries-land-250m.geo.json"
+            )
         ],
         f"{Brotli.NAME},brotli": [
             "-f", "-o", "/tmp/brotli_compression_test.br",
@@ -53,9 +55,7 @@ class WorkloadProvider(Provider):
         ],
         f"{Gzip.NAME},gzip": [
             "--force", "--keep", "--name", "--recursive", "--verbose", "--best",
-            str(
-                WORKLOADS_BASE_DIR / "compression/countries-land-250m.geo.json"
-            )
+            str(WORKLOADS_BASE_DIR / "compression/countries-land-1km.geo.json")
         ],
     }
 
