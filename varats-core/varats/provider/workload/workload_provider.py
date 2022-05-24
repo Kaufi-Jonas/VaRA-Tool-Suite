@@ -50,8 +50,13 @@ class WorkloadProvider(Provider):
             str(WORKLOADS_BASE_DIR / "compression/countries-land-1km.geo.json")
         ],
         f"{Bzip2.NAME},bzip2": [
-            "--compress", "--best", "--verbose", "--keep", "--force",
-            str(WORKLOADS_BASE_DIR / "compression/countries-land-1m.geo.json")
+            "--compress", "--best", "--verbose", "--verbose", "--keep",
+            "--force",
+            str(WORKLOADS_BASE_DIR / "compression/countries-land-1m.geo.json"),
+            str(WORKLOADS_BASE_DIR / "compression/countries-land-10m.geo.json"),
+            str(
+                WORKLOADS_BASE_DIR / "compression/countries-land-100m.geo.json"
+            )
         ],
         f"{Gzip.NAME},gzip": [
             "--force", "--keep", "--name", "--recursive", "--verbose", "--best",
