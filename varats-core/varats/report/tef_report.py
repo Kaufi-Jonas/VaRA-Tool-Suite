@@ -4,7 +4,10 @@ with chrome tracing."""
 import json
 import typing as tp
 from enum import Enum
+from json import JSONDecodeError
 from pathlib import Path
+
+import numpy as np
 
 from varats.report.report import BaseReport, ReportAggregate
 
@@ -102,7 +105,11 @@ class TEFReport(BaseReport, shorthand="TEF", file_type="json"):
         super().__init__(path)
 
         with open(self.path, "r", encoding="utf-8") as json_tef_report:
-            data = json.load(json_tef_report)
+            try:
+                data = json.load(json_tef_report)
+            except JSONDecodeError:
+                print(f"Error while parsing JSON of report {self.filename}.")
+                raise
 
             self.__display_time_unit = str(data["displayTimeUnit"])
             self.__trace_events = self._parse_trace_events(data["traceEvents"])
@@ -140,3 +147,73 @@ class TEFReportAggregate(
 
     def __init__(self, path: Path) -> None:
         super().__init__(path, TEFReport)
+
+        self.__wall_clock_times: tp.List[float] = []
+        for report in self.reports:
+            error_base_text = "Feature 'Base' in report {}/{}".format(
+                self.filename, report.filename
+            )
+
+            base_events = filter(
+                lambda trace_event: trace_event.name == "Base",
+                report.trace_events
+            )
+
+            # Find begin and end timestamps.
+            time_start = None
+            time_end = None
+
+            for base_event in base_events:
+                if base_event.event_type == TraceEventType.DURATION_EVENT_BEGIN:
+                    time_start = base_event.timestamp
+                elif base_event.event_type == TraceEventType.DURATION_EVENT_END:
+                    time_end = base_event.timestamp
+                else:
+                    print(
+                        error_base_text,
+                        "contains unexpected event type '{}'".format(
+                            base_event.event_type
+                        )
+                    )
+
+            if time_start is None or time_end is None:
+                print(
+                    error_base_text, "is missing begin or end event. Skipping."
+                )
+                continue
+
+            # Calculate execution time.
+            execution_ticks = time_end - time_start
+            if report.display_time_unit == "ms":
+                execution_time = execution_ticks / 10**6
+            elif report.display_time_unit == "ns":
+                execution_time = execution_ticks / 10**9
+            else:
+                print(
+                    error_base_text,
+                    "has unexpected display time unit '{}'. Skipping.".format(
+                        report.display_time_unit
+                    )
+                )
+                continue
+
+            self.__wall_clock_times.append(execution_time)
+
+        if not self.__wall_clock_times:
+            self.__wall_clock_times.append(0)
+
+    @property
+    def wall_clock_times(self) -> tp.List[float]:
+        """Wall clock times from all reports, computed through the base
+        feature's start and end events."""
+        return self.__wall_clock_times
+
+    @property
+    def mean_std_wall_clock_times(self) -> tp.Tuple[float, float]:
+        """Returns (mean, std)."""
+        return (np.mean(self.ctx_switches), np.std(self.ctx_switches))
+
+    @property
+    def min_max_wall_clock_times(self) -> tp.Tuple[float, float]:
+        """Returns (min, max)."""
+        return (np.min(self.ctx_switches), np.max(self.ctx_switches))
