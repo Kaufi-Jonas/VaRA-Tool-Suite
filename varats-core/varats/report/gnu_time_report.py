@@ -255,6 +255,7 @@ class TimeReportAggregate(
 
     @property
     def wall_clock_times(self) -> tp.List[float]:
+        """Wall clock times from all reports."""
         return [
             report.wall_clock_time.total_seconds() for report in self.reports
         ]
@@ -271,6 +272,7 @@ class TimeReportAggregate(
 
     @property
     def ctx_switches(self) -> tp.List[float]:
+        """Total number of context switches from all reports."""
         return [
             report.voluntary_ctx_switches + report.involuntary_ctx_switches
             for report in self.reports
@@ -289,5 +291,7 @@ class TimeReportAggregate(
     @property
     def summary(self) -> str:
         return f"num_reports = {len(self.reports)}\n" \
-            "mean(std) of wall clock time = %.3f(%.3f)\n" % self.mean_std_wall_clock_time + \
-            "mean(std) of context switches = %.3f(%.3f)\n" % self.mean_std_ctx_switches
+            "mean(std) of wall clock time = %.2f(%.2f)\n" \
+                % self.mean_std_wall_clock_time + \
+            "mean(std) of context switches = %.2f(%.2f)\n" \
+                % self.mean_std_ctx_switches
