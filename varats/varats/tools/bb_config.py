@@ -110,7 +110,6 @@ def create_new_bb_config(
         'varats.experiments.vara.marker_tester',
         'varats.experiments.vara.blame_verifier_experiment',
         'varats.experiments.vara.phasar_fta',
-        'varats.experiments.vara.usdt_stats_experiment',
         'varats.experiments.phasar.ide_linear_constant_experiment',
         'varats.experiments.phasar.global_analysis_compare',
         'varats.experiments.szz.szz_unleashed_experiment',
