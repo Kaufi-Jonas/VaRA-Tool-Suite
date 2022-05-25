@@ -72,7 +72,7 @@ class TimeReport(BaseReport, shorthand="TR", file_type="txt"):
                     continue
 
                 if line.startswith("Involuntary context switches"):
-                    self.__involuntary_ctx_switches: timedelta = \
+                    self.__involuntary_ctx_switches: int = \
                         TimeReport._parse_involuntary_ctx_switches(line)
                     continue
 
