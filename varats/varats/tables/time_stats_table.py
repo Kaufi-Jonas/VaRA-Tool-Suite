@@ -13,8 +13,8 @@ from varats.table.tables import TableFormat, TableGenerator
 
 
 class TimeStatsTable(Table, table_name="time_stats"):
-    """Table for comparing statistics in `TimeReportAggregate` for multiple
-    experiments."""
+    """Table to compare `TimeReportAggregate` stats between multiple experiments
+    ."""
 
     def tabulate(self, table_format: TableFormat, wrap_table: bool) -> str:
         case_studies = get_loaded_paper_config().get_all_case_studies()
