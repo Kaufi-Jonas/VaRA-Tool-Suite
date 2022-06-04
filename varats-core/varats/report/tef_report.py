@@ -4,7 +4,10 @@ with chrome tracing."""
 import json
 import typing as tp
 from enum import Enum
+from json import JSONDecodeError
 from pathlib import Path
+
+import numpy as np
 
 from varats.report.report import BaseReport, ReportAggregate
 
@@ -102,7 +105,11 @@ class TEFReport(BaseReport, shorthand="TEF", file_type="json"):
         super().__init__(path)
 
         with open(self.path, "r", encoding="utf-8") as json_tef_report:
-            data = json.load(json_tef_report)
+            try:
+                data = json.load(json_tef_report)
+            except JSONDecodeError:
+                print(f"Error while parsing JSON of report {self.filename}.")
+                raise
 
             self.__display_time_unit = str(data["displayTimeUnit"])
             self.__trace_events = self._parse_trace_events(data["traceEvents"])
