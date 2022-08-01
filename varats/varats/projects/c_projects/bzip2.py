@@ -6,6 +6,7 @@ from benchbuild.utils.cmd import mkdir, cmake
 from benchbuild.utils.settings import get_number_of_jobs
 from plumbum import local
 
+from varats.containers.containers import ImageBase, get_base_image
 from varats.paper_mgmt.paper_config import PaperConfigSpecificGit
 from varats.project.project_domain import ProjectDomains
 from varats.project.project_util import (
@@ -36,6 +37,8 @@ class Bzip2(VProject):
             shallow=False
         )
     ]
+
+    CONTAINER = get_base_image(ImageBase.DEBIAN_10)
 
     @staticmethod
     def binaries_for_revision(
