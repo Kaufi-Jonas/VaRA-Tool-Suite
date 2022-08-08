@@ -44,11 +44,6 @@ class WorkloadProvider(Provider):
         )
 
         self._workloads = {
-            f"{FeaturePerfCSCollection.NAME},SimpleSleepLoop": [
-                "--iterations",
-                str(3 * 10**3), "--sleepms",
-                str(10)
-            ],
             f"{FeaturePerfCSCollection.NAME},SimpleBusyLoop": [
                 "--iterations",
                 str(3 * 10**5), "--count_to",
