@@ -55,7 +55,7 @@ class WorkloadProvider(Provider):
                 str(10**5)
             ],
             f"{Xz.NAME},xz": [
-                "-k", "-f", "-9e", "--compress", "--threads=0", "--format=xz",
+                "-k", "-f", "-9e", "--compress", "--threads=1", "--format=xz",
                 "-vv",
                 str(
                     self._workloads_base_dir /
