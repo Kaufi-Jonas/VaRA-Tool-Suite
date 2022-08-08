@@ -56,7 +56,7 @@ class ImageBase(Enum):
 
 _BASE_IMAGES: tp.Dict[ImageBase, tp.Callable[[], ContainerImage]] = {
     ImageBase.DEBIAN_10:
-        lambda: ContainerImage().from_("docker.io/library/debian:10").
+        lambda: ContainerImage().from_("docker.io/library/debian:11").
         run('apt', 'update').run(
             'apt', 'install', '-y', 'wget', 'gnupg', 'lsb-release',
             'software-properties-common', 'python3', 'python3-dev',
