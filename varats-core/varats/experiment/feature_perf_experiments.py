@@ -79,6 +79,7 @@ class FeaturePerfExperiment(
     """
 
     REPORT_SPEC = ReportSpecification(EmptyReport)
+    CONTAINER = VersionExperiment.CONTAINER.run('apt', 'install', '-y', 'time')
 
     def actions_for_project(
         self,
