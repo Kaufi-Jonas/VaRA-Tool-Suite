@@ -81,7 +81,12 @@ def __validate_project_parameters(
     "--container", is_flag=True, help="Run experiments in a container."
 )
 @click.option(
-    "-E", "--experiment", required=True, help="The experiment to run."
+    "-E",
+    "--experiment",
+    "experiments",
+    required=True,
+    multiple=True,
+    help="The experiment to run."
 )
 @click.option("-p", "--pretend", is_flag=True, help="Do not run experiments.")
 @click.argument("projects", nargs=-1, callback=__validate_project_parameters)
@@ -90,7 +95,7 @@ def main(
     slurm: bool,
     submit: bool,
     container: bool,
-    experiment: str,
+    experiments: tp.List[str],
     projects: tp.List[str],
     pretend: bool,
 ) -> None:
@@ -144,15 +149,17 @@ def main(
     if pretend:
         bb_command_args.append("-p")
 
+    exp_args: tp.List[str] = []
+    for exp in experiments:
+        exp_args.extend(['-E', exp])
+
     if not projects:
         projects = list({
             cs.project_name for cs in get_paper_config().get_all_case_studies()
         })
 
     bb_args = list(
-        itertools.chain(
-            bb_command_args, ["-E", experiment], projects, bb_extra_args
-        )
+        itertools.chain(bb_command_args, exp_args, projects, bb_extra_args)
     )
 
     with local.cwd(vara_cfg()["benchbuild_root"].value):
