@@ -6,7 +6,7 @@ from time import sleep
 
 from benchbuild import Project
 from benchbuild.utils import actions
-from benchbuild.utils.cmd import time, cp, mkdir
+from benchbuild.utils.cmd import time, cp, mkdir, numactl
 from plumbum import BG, FG, local
 from plumbum.commands.modifiers import Future
 
@@ -133,6 +133,8 @@ class TraceFeaturePerfWithTime(actions.Step):  # type: ignore
                             local.env(VARA_TRACE_FILE=tef_report_file):
                         run_cmd = binary[workload]
                         run_cmd = time["-v", "-o", time_report_file, run_cmd]
+                        run_cmd = numactl["--cpunodebind=0", "--membind=0",
+                                          run_cmd]
 
                         # Attach bcc script to activate USDT probes.
                         bcc_runner: Future
@@ -163,6 +165,8 @@ class TraceFeaturePerfWithTime(actions.Step):  # type: ignore
         # Assertion: Can be run without sudo password prompt.
         bcc_cmd = bcc_script["--output_file", report_file, "--no_poll",
                              "--executable", binary]
+        bcc_cmd = numactl["--cpunodebind=0", "--membind=0", bcc_cmd]
+
         with local.as_root():
             bcc_runner = bcc_cmd & BG
             sleep(3)  # give bcc script time to start up
