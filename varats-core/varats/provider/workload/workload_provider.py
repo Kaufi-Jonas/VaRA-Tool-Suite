@@ -46,8 +46,8 @@ class WorkloadProvider(Provider):
         self._workloads = {
             f"{FeaturePerfCSCollection.NAME},SimpleBusyLoop": [
                 "--iterations",
-                str(3 * 10**5), "--count_to",
-                str(10**5)
+                str(3 * 10**6), "--count_to",
+                str(10**4)
             ],
             f"{Xz.NAME},xz": [
                 "-k", "-f", "-9e", "--compress", "--threads=1", "--format=xz",
@@ -85,7 +85,7 @@ class WorkloadProvider(Provider):
                 "--best",
                 str(
                     self._workloads_base_dir /
-                    "compression/countries-land-500m.geo.json"
+                    "compression/countries-land-1m.geo.json"
                 )
             ],
         }
