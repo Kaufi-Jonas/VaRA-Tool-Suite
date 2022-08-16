@@ -65,8 +65,8 @@ class WorkloadProvider(Provider):
                 )
             ],
             f"{Bzip2.NAME},bzip2": [
-                "--compress", "--best", "--verbose", "--verbose", "--keep",
-                "--force",
+                "--compress", "--best", "--verbose", "--verbose", "--verbose",
+                "--keep", "--force",
                 str(
                     self._workloads_base_dir /
                     "compression/countries-land-1m.geo.json"
