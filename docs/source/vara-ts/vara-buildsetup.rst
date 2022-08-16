@@ -16,7 +16,7 @@ For ubuntu:
 
 .. code-block:: console
 
-    sudo apt install python3-dev python3-tk python3-psutil psutils ninja-build python3-pip autoconf cmake ruby curl time libyaml-dev git graphviz-dev
+    sudo apt install python3-dev python3-tk python3-psutil psutils ninja-build python3-pip autoconf cmake ruby curl time libyaml-dev git graphviz-dev libssl-dev clang
     sudo apt install python3-venv # If you want to install VaRA-TS in a python virtualenv
 
 For arch:
