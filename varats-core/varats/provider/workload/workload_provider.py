@@ -46,8 +46,8 @@ class WorkloadProvider(Provider):
         self._workloads = {
             f"{FeaturePerfCSCollection.NAME},SimpleBusyLoop": [
                 "--iterations",
-                str(3 * 10**6), "--count_to",
-                str(10**4)
+                str(10**7), "--count_to",
+                str(10**3)
             ],
             f"{Xz.NAME},xz": [
                 "-k", "-f", "-9e", "--compress", "--threads=1", "--format=xz",
