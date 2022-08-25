@@ -13,6 +13,13 @@ from varats.plot.plots import PlotGenerator, PlotConfig
 from varats.report.gnu_time_report import TimeReportAggregate
 from varats.revision.revisions import get_processed_revisions_files
 
+_experiment_short_subsitution = {
+    "FPA_Dry": "Dry",
+    "FPA_Dry_USDT": "Inactive USDT",
+    "FPA_TEF": "TEF Baseline",
+    "FPA_TEF_USDT": "TEF USDT"
+}
+
 
 class TimeBoxPlot(Plot, plot_name="time_boxplot"):
     """Box plot of `TimeReportAggregate`."""
@@ -45,9 +52,15 @@ class TimeBoxPlot(Plot, plot_name="time_boxplot"):
 
                 for measurement in time_aggregated.measurements_wall_clock_time:
                     new_row = {
-                        "binary": report_name.binary_name,
-                        "experiment": report_name.experiment_shorthand,
-                        "runtime": measurement
+                        "binary":
+                            report_name.binary_name,
+                        "experiment":
+                            _experiment_short_subsitution.get(
+                                report_name.experiment_shorthand,
+                                report_name.experiment_shorthand
+                            ),
+                        "runtime":
+                            measurement
                     }
 
                     df = df.append(new_row, ignore_index=True)
@@ -55,7 +68,7 @@ class TimeBoxPlot(Plot, plot_name="time_boxplot"):
         df.sort_values(["binary", "experiment"], inplace=True)
 
         for binary in binaries:
-            plt.figure()
+            plt.figure(binary)
             data = df[(df["binary"] == binary)]
 
             # Show each observation with a scatterplot
@@ -78,7 +91,6 @@ class TimeBoxPlot(Plot, plot_name="time_boxplot"):
                 markers="d",
                 ci="sd"
             )
-            plt.title(f"Measurement Overhead {binary}")
             plt.ylabel("Runtime in Seconds")
             plt.xlabel(None)
 
