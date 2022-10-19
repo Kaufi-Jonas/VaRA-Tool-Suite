@@ -157,7 +157,7 @@ class VaRA(ResearchTool[VaRACodeBase]):
         ],
         Distro.FEDORA: [
             "libsqlite3x-devel", "libcurl-devel", "boost-devel", "papi-devel",
-            "llvm-googletest", "libxml2-devel", "clang"
+            "llvm-googletest", "libxml2-devel", "clang", "pcre-devel"
         ]
     })
 
