@@ -59,7 +59,8 @@ class CollectInstrumentationPoints(actions.Step):  # type: ignore
             # - vara-PFTDD to generate feature regions
             # - vara-IPP (Instrumentation Point Printer)
             opt_params = [
-                "--vara-PTFDD", "-vara-IPP", "-o", "/dev/null",
+                "-enable-new-pm=0", "--vara-PTFDD", "--vara-IPP", "-o",
+                "/dev/null",
                 get_cached_bc_file_path(
                     project, binary,
                     [BCFileExtensions.DEBUG, BCFileExtensions.FEATURE]
@@ -112,14 +113,12 @@ class InstrumentationPointPrinter(VersionExperiment, shorthand="IPP"):
         ]
 
         # Add the required runtime extensions to the project(s).
-        project.runtime_extension = run.RuntimeExtension(project, self) \
-            << time.RunWithTime()
+        project.runtime_extension = run.RuntimeExtension(project, self)
 
         # Add the required compiler extensions to the project(s). We want to
         # transfer the whole project into LLVM-IR.
         project.compiler_extension = compiler.RunCompiler(project, self) \
-            << RunWLLVM() \
-            << run.WithTimeout()
+            << RunWLLVM()
 
         project.compile = get_default_compile_error_wrapped(
             self.get_handle(), project, self.REPORT_SPEC.main_report
