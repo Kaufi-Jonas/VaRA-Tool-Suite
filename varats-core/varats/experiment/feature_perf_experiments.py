@@ -31,6 +31,8 @@ class InstrumentationType(Enum):
     """Write trace event file."""
     USDT = "usdt"
     """Insert USDT probes."""
+    USDT_RAW = "usdt_raw"
+    """Insert USDT probes."""
 
 
 def feature_perf_compiler_options(
@@ -43,8 +45,9 @@ def feature_perf_compiler_options(
         return []
 
     cflags = [
-        "-fvara-feature", "-fsanitize=vara",
-        f"-fvara-instr={instrumentation.value}", "-flto", "-fuse-ld=lld"
+        "-fno-omit-frame-pointer", "-flegacy-pass-manager", "-fvara-feature",
+        "-fsanitize=vara", f"-fvara-instr={instrumentation.value}", "-flto",
+        "-fuse-ld=lld", "-fvara-instruction-threshold=0"
     ]
 
     if use_feature_model:
@@ -107,10 +110,8 @@ class FeaturePerfExperiment(
         project.ldflags += feature_perf_linker_options(instrumentation)
 
         # runtime and compiler extensions
-        project.runtime_extension = run.RuntimeExtension(project, self) \
-            << bbtime.RunWithTime()
-        project.compiler_extension = compiler.RunCompiler(project, self) \
-            << run.WithTimeout()
+        project.runtime_extension = run.RuntimeExtension(project, self)
+        project.compiler_extension = compiler.RunCompiler(project, self)
 
         # project actions
         project_actions = []
