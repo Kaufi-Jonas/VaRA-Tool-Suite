@@ -19,7 +19,6 @@ from varats.projects.perf_tests.feature_perf_cs_collection import (
     FeaturePerfCSCollection,
 )
 from varats.provider.provider import Provider
-from varats.utils.settings import vara_cfg
 
 
 class WorkloadProvider(Provider):
@@ -48,6 +47,12 @@ class WorkloadProvider(Provider):
                 "--iterations",
                 str(10**7), "--count_to",
                 str(5 * 10**3)
+            ],
+            f"{FeaturePerfCSCollection.NAME},MultiSharedMultipleRegions": [
+                "--slow", "--header", "--extern", "--cpp"
+            ],
+            f"{FeaturePerfCSCollection.NAME},SimpleFeatureInteraction": [
+                "--enc", "--compress"
             ],
             f"{Xz.NAME},xz": [
                 "-k", "-f", "-9e", "--compress", "--threads=1", "--format=xz",

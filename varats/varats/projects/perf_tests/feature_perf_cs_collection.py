@@ -58,17 +58,24 @@ class FeaturePerfCSCollection(VProject):
             only_valid_in=RevisionRange("162db88346", "master")
         )
         binary_map.specify_binary(
-            "build/bin/SimpleSleepLoop",
+            "build/bin/SimpleBusyLoop",
             BinaryType.EXECUTABLE,
             only_valid_in=RevisionRange(
                 "c77bca4c6888970fb721069c82455137943ccf49", "master"
             )
         )
         binary_map.specify_binary(
-            "build/bin/SimpleBusyLoop",
+            "build/bin/MultiSharedMultipleRegions",
             BinaryType.EXECUTABLE,
             only_valid_in=RevisionRange(
-                "c77bca4c6888970fb721069c82455137943ccf49", "master"
+                "c051e44a973ee31b3baa571407694467a513ba68", "master"
+            )
+        )
+        binary_map.specify_binary(
+            "build/bin/SimpleFeatureInteraction",
+            BinaryType.EXECUTABLE,
+            only_valid_in=RevisionRange(
+                "c051e44a973ee31b3baa571407694467a513ba68", "master"
             )
         )
 
