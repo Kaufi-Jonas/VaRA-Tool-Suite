@@ -4,17 +4,18 @@ import typing as tp
 from pathlib import Path
 
 from benchbuild import Project
-from benchbuild.extensions import compiler, run, time
+from benchbuild.extensions import compiler, base, run
 from benchbuild.utils import actions
 from benchbuild.utils.cmd import opt
+from benchbuild.utils.run import RunInfo
+from plumbum import local
+from plumbum.commands.base import BoundCommand
 
 from varats.data.reports.vara_ipp_report import VaraIPPReport
 from varats.experiment.experiment_util import (
     VersionExperiment,
     ExperimentHandle,
-    exec_func_with_pe_error_handler,
     get_default_compile_error_wrapped,
-    create_default_analysis_failure_handler,
     get_varats_result_folder,
     create_new_success_result_filename,
 )
@@ -68,17 +69,8 @@ class CollectInstrumentationPoints(actions.Step):  # type: ignore
             ]
 
             # Store the collected information in report.
-            run_cmd = opt[opt_params] > str(
-                vara_result_folder / str(result_file)
-            )
-
-            exec_func_with_pe_error_handler(
-                run_cmd,
-                create_default_analysis_failure_handler(
-                    self.__experiment_handle, project, VaraIPPReport,
-                    Path(vara_result_folder)
-                )
-            )
+            with local.env(IPP_OUTFILE=vara_result_folder / str(result_file)):
+                opt(opt_params)
 
         return actions.StepResult.OK
 
@@ -135,3 +127,22 @@ class InstrumentationPointPrinter(VersionExperiment, shorthand="IPP"):
         analysis_actions.append(actions.Clean(project))
 
         return analysis_actions
+
+
+class WithIPPFile(base.Extension):
+
+    def __init__(
+        self,
+        ipp_file: Path,
+        *extensions: base.Extension,
+        config: tp.Optional[tp.Dict[str, str]] = None,
+        **kwargs: tp.Any
+    ):
+        super().__init__(*extensions, config=config, **kwargs)
+
+        self._ipp_file = ipp_file
+
+    def __call__(self, command: BoundCommand, *args: str,
+                 **kwargs: tp.Any) -> tp.List[RunInfo]:
+        command = command.with_env(IPP_OUTFILE=self._ipp_file)
+        return self.call_next(command, *args, **kwargs)
