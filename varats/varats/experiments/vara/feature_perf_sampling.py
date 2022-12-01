@@ -12,8 +12,10 @@ from plumbum.commands.modifiers import Future
 from varats.data.reports.dynamic_probe_locations_report import (
     DynamicProbeLocationsReport,
 )
-from varats.data.reports.perf_profile_report import PerfProfileReport
-from varats.data.reports.vara_ipp_report import VaraIPPReport
+from varats.data.reports.perf_profile_report import (
+    PerfProfileReport,
+    PerfProfileReportAggregate,
+)
 from varats.experiment.experiment_util import (
     ExperimentHandle,
     ZippedReportFolder,
@@ -23,7 +25,6 @@ from varats.experiment.feature_perf_experiments import (
     FeaturePerfExperiment,
     InstrumentationType,
 )
-from varats.experiments.vara.instrumentation_point_printer import WithIPPFile
 from varats.project.project_util import ProjectBinaryWrapper, BinaryType
 from varats.provider.workload.workload_provider import WorkloadProvider
 from varats.report.gnu_time_report import TimeReport, TimeReportAggregate
@@ -37,10 +38,14 @@ class SampleWithPerf(actions.Step):  # type: ignore
     NAME = "ProfileWithPerf"
     DESCRIPTION = """TODO"""
 
-    def __init__(self, project: Project, experiment_handle: ExperimentHandle):
+    def __init__(
+        self, project: Project, experiment_handle: ExperimentHandle,
+        sampling_rate: int
+    ):
         super().__init__(obj=project, action_fn=self.run)
         self._experiment_handle = experiment_handle
-        self._num_iterations = 10
+        self._num_iterations = 1
+        self._sampling_rate = sampling_rate
 
     def run(self) -> actions.StepResult:
         """Action function for this step."""
@@ -101,55 +106,60 @@ class SampleWithPerf(actions.Step):  # type: ignore
                 bpf_script.wait()
 
             # report files
-            perf_report_file_name = self._experiment_handle.get_file_name(
-                PerfProfileReport.shorthand(),
+            perf_report_zip_name = self._experiment_handle.get_file_name(
+                PerfProfileReportAggregate.shorthand(),
                 project_name=project.name,
                 binary_name=binary.name,
                 project_revision=project.version_of_primary,
                 project_uuid=str(project.run_uuid),
                 extension_type=FileStatusExtension.SUCCESS
             )
-
-            perf_report_file = Path(
-                vara_result_folder, str(perf_report_file_name)
+            perf_report_zip = Path(
+                vara_result_folder, str(perf_report_zip_name)
             )
 
             # Assemble Path for time report.
-            time_report_name = self._experiment_handle.get_file_name(
+            time_report_zip_name = self._experiment_handle.get_file_name(
                 TimeReportAggregate.shorthand(),
                 project_name=project.name,
                 binary_name=binary.name,
                 project_revision=project.version_of_primary,
                 project_uuid=str(project.run_uuid),
-                extension_type=FileStatusExtension.SUCCESS
+                extension_type=FileStatusExtension.SUCCESS,
             )
 
-            time_report_file = Path(vara_result_folder, str(time_report_name))
+            time_report_zip = Path(
+                vara_result_folder, str(time_report_zip_name)
+            )
 
-            # Execute and trace binary.
-            with ZippedReportFolder(time_report_file) as time_tmp:
-                for i in range(self._num_iterations):
-                    # Print progress.
-                    print(
-                        f"Binary={binary.name} Progress "
-                        f"{i}/{self._num_iterations}",
-                        flush=True
-                    )
+        with ZippedReportFolder(time_report_zip) as time_tmp, \
+            ZippedReportFolder(perf_report_zip) as perf_tmp:
+            for i in range(self._num_iterations):
 
-                    # Generate full time report filename.
-                    time_report_file = Path(
-                        time_tmp, f"time_iteration_{i}.{TimeReport.FILE_TYPE}"
-                    )
+                # Execute and trace binary.
+                # Print progress.
+                print(
+                    f"Binary={binary.name} Progress "
+                    f"{i}/{self._num_iterations}",
+                    flush=True
+                )
 
-                    with local.cwd(project.source_of_primary):
-                        run_cmd = binary[workload]
-                        run_cmd = time["-v", "-o", time_report_file, run_cmd]
-                        run_cmd = perf["record", "-F", "997", "-g",
-                                       "--user-callchains", "-o",
-                                       perf_report_file, run_cmd]
-                        run_cmd = numactl["--cpunodebind=0", "--membind=0",
-                                          run_cmd]
-                        run_cmd()
+                # Generate full report filenames.
+                time_report_file = Path(
+                    time_tmp, f"iteration_{i}.{TimeReport.FILE_TYPE}"
+                )
+                perf_report_file = Path(
+                    perf_tmp, f"iteration_{i}.{PerfProfileReport.FILE_TYPE}"
+                )
+
+                with local.cwd(project.source_of_primary):
+                    run_cmd = binary[workload]
+                    run_cmd = time["-v", "-o", time_report_file, run_cmd]
+                    run_cmd = perf["record", "-F", self._sampling_rate, "-g",
+                                   "--user-callchains", "-o", perf_report_file,
+                                   run_cmd]
+                    run_cmd = numactl["--cpunodebind=0", "--membind=0", run_cmd]
+                    run_cmd()
         return actions.StepResult.OK
 
     @staticmethod
@@ -173,12 +183,13 @@ class SampleWithPerf(actions.Step):  # type: ignore
         return bpftrace_runner
 
 
-class FeaturePerfSampling(FeaturePerfExperiment, shorthand="FPS"):
+class FeaturePerfSampling97Hz(FeaturePerfExperiment, shorthand="FPS97Hz"):
     """"""
 
-    NAME = "FeaturePerfSampling"
+    NAME = "FeaturePerfSampling97Hz"
     REPORT_SPEC = ReportSpecification(
-        TimeReportAggregate, PerfProfileReport, DynamicProbeLocationsReport
+        TimeReportAggregate, PerfProfileReportAggregate,
+        DynamicProbeLocationsReport
     )
 
     def actions_for_project(
@@ -186,25 +197,25 @@ class FeaturePerfSampling(FeaturePerfExperiment, shorthand="FPS"):
         project: Project,
         instrumentation: InstrumentationType = InstrumentationType.USDT_RAW,
         analysis_actions: tp.Optional[tp.Iterable[actions.Step]] = None,
-        use_feature_model: bool = True
+        use_feature_model: bool = True,
+        sampling_rate: int = 97
     ) -> tp.MutableSequence[actions.Step]:
 
-        analysis_actions = [SampleWithPerf(project, self.get_handle())]
+        analysis_actions = [
+            SampleWithPerf(project, self.get_handle(), sampling_rate)
+        ]
         actions = super().actions_for_project(
             project, instrumentation, analysis_actions, use_feature_model
         )
-
-        # extract information about feature regions while compiling
-        # vara_result_folder = get_varats_result_folder(project)
-        # ipp_filename = self.get_handle().get_file_name(
-        #     VaraIPPReport.shorthand(),
-        #     project_name=project.name,
-        #     binary_name="",
-        #     project_revision=project.version_of_primary,
-        #     project_uuid=str(project.run_uuid),
-        #     extension_type=FileStatusExtension.SUCCESS
-        # )
-        # ipp_file = vara_result_folder / str(ipp_filename)
-        # project.compiler_extension <<= WithIPPFile(ipp_file)
-
         return actions
+
+
+class FeaturePerfSampling997Hz(FeaturePerfSampling97Hz, shorthand="FPS997Hz"):
+    """"""
+
+    NAME = "FeaturePerfSampling997Hz"
+
+    def actions_for_project(
+        self, project: Project
+    ) -> tp.MutableSequence[actions.Step]:
+        return super().actions_for_project(project, sampling_rate=997)
