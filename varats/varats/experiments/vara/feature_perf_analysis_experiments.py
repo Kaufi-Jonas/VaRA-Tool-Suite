@@ -6,7 +6,7 @@ from time import sleep
 
 from benchbuild import Project
 from benchbuild.utils import actions
-from benchbuild.utils.cmd import time, cp, mkdir, numactl
+from benchbuild.utils.cmd import time, cp, mkdir, numactl, sudo, bpftrace
 from plumbum import BG, FG, local
 from plumbum.commands.modifiers import Future
 
@@ -36,15 +36,13 @@ class TraceFeaturePerfWithTime(actions.Step):  # type: ignore
                   runtime information using gnu time.'''
 
     def __init__(
-        self,
-        project: Project,
-        experiment_handle: ExperimentHandle,
-        attach_bpf: bool = False
+        self, project: Project, experiment_handle: ExperimentHandle,
+        instrumentation: InstrumentationType
     ):
         super().__init__(obj=project, action_fn=self.run)
         self._experiment_handle = experiment_handle
-        self._attach_bpf = attach_bpf
-        self._num_iterations = 20
+        self._instrumentation = instrumentation
+        self._num_iterations = 10
 
     def run(self) -> actions.StepResult:
         """Action function for this step."""
@@ -58,7 +56,7 @@ class TraceFeaturePerfWithTime(actions.Step):  # type: ignore
                 continue
 
             # Copy binary to allow further investigation after experiment.
-            binaries_dir = Path("/tmp/traced_feature_perf_binaries")
+            binaries_dir = vara_result_folder / "compiled_binaries"
             mkdir("-p", binaries_dir)
             cp(
                 Path(project.source_of_primary, binary.path), binaries_dir /
@@ -136,25 +134,32 @@ class TraceFeaturePerfWithTime(actions.Step):  # type: ignore
                         run_cmd = numactl["--cpunodebind=0", "--membind=0",
                                           run_cmd]
 
-                        # Attach bcc script to activate USDT probes.
-                        bcc_runner: Future
-                        if self._attach_bpf:
-                            bcc_runner = \
-                                self.attach_bcc_tef_script(
+                        # Attach bpf script to activate USDT probes.
+                        bpf_runner: Future
+                        if self._instrumentation is InstrumentationType.USDT_RAW:
+                            bpf_runner = \
+                                self.attach_usdt_raw_tracing(
                                     tef_report_file, binary.path
                                 )
+                        elif self._instrumentation is InstrumentationType.USDT:
+                            bpf_runner = \
+                                self.attach_usdt_tracing(
+                                    tef_report_file, binary.path)
 
                         # Run binary.
                         run_cmd & FG  # pylint: disable=W0104
 
-                        # Wait for bcc running in background to exit.
-                        if self._attach_bpf:
-                            bcc_runner.wait()
+                        # Wait for bpf running in background to exit.
+                        if self._instrumentation in [
+                            InstrumentationType.USDT,
+                            InstrumentationType.USDT_RAW
+                        ]:
+                            bpf_runner.wait()
 
         return actions.StepResult.OK
 
     @staticmethod
-    def attach_bcc_tef_script(report_file: Path, binary: Path) -> Future:
+    def attach_usdt_tracing(report_file: Path, binary: Path) -> Future:
         """Attach bcc script to binary to activate USDT probes."""
         bcc_script_location = Path(
             VaRA.install_location(),
@@ -165,12 +170,31 @@ class TraceFeaturePerfWithTime(actions.Step):  # type: ignore
         # Assertion: Can be run without sudo password prompt.
         bcc_cmd = bcc_script["--output_file", report_file, "--no_poll",
                              "--executable", binary]
+        bcc_cmd = sudo[bcc_cmd]
         bcc_cmd = numactl["--cpunodebind=0", "--membind=0", bcc_cmd]
 
-        with local.as_root():
-            bcc_runner = bcc_cmd & BG
-            sleep(3)  # give bcc script time to start up
-            return bcc_runner
+        bcc_runner = bcc_cmd & BG
+        sleep(3)  # give bcc script time to start up
+        return bcc_runner
+
+    @staticmethod
+    def attach_usdt_raw_tracing(report_file: Path, binary: Path) -> Future:
+        """Attach bpftrace script to binary to activate USDT probes."""
+        bpftrace_script_location = Path(
+            VaRA.install_location(),
+            "share/vara/perf_bpf_tracing/RawUsdtTefMarker.bt"
+        )
+        bpftrace_script = bpftrace["-o", report_file, "-q",
+                                   bpftrace_script_location, binary]
+        bpftrace_script = bpftrace_script.with_env(BPFTRACE_PERF_RB_PAGES=4096)
+
+        # Assertion: Can be run without sudo password prompt.
+        bpftrace_cmd = sudo[bpftrace_script]
+        bpftrace_cmd = numactl["--cpunodebind=0", "--membind=0", bpftrace_cmd]
+
+        bpftrace_runner = bpftrace_cmd & BG
+        sleep(10)  # give bpftrace time to start up
+        return bpftrace_runner
 
 
 class FeaturePerfAnalysisDry(FeaturePerfExperiment, shorthand="FPA_Dry"):
@@ -188,7 +212,9 @@ class FeaturePerfAnalysisDry(FeaturePerfExperiment, shorthand="FPA_Dry"):
     ) -> tp.MutableSequence[actions.Step]:
 
         analysis_actions = [
-            TraceFeaturePerfWithTime(project, self.get_handle())
+            TraceFeaturePerfWithTime(
+                project, self.get_handle(), instrumentation
+            )
         ]
         return super().actions_for_project(
             project, instrumentation, analysis_actions, use_feature_model
@@ -213,7 +239,36 @@ class FeaturePerfAnalysisDryUsdt(
     ) -> tp.MutableSequence[actions.Step]:
 
         analysis_actions = [
-            TraceFeaturePerfWithTime(project, self.get_handle())
+            TraceFeaturePerfWithTime(
+                project, self.get_handle(), instrumentation
+            )
+        ]
+        return super().actions_for_project(
+            project, instrumentation, analysis_actions, use_feature_model
+        )
+
+
+class FeaturePerfAnalysisDryRawUsdt(
+    FeaturePerfExperiment, shorthand="FPA_Dry_RawUSDT"
+):
+    """Captures baseline runtime for inactive probes instrumented by VaRA's USDT
+    feature performance analysis instrumentation."""
+
+    NAME = "FeaturePerfAnalysisDryRawUsdt"
+    REPORT_SPEC = ReportSpecification(TimeReportAggregate, TEFReport)
+
+    def actions_for_project(
+        self,
+        project: Project,
+        instrumentation: InstrumentationType = InstrumentationType.USDT_RAW,
+        analysis_actions: tp.Optional[tp.Iterable[actions.Step]] = None,
+        use_feature_model: bool = True
+    ) -> tp.MutableSequence[actions.Step]:
+
+        analysis_actions = [
+            TraceFeaturePerfWithTime(
+                project, self.get_handle(), instrumentation
+            )
         ]
         return super().actions_for_project(
             project, instrumentation, analysis_actions, use_feature_model
@@ -235,7 +290,9 @@ class FeaturePerfAnalysisTef(FeaturePerfExperiment, shorthand="FPA_TEF"):
     ) -> tp.MutableSequence[actions.Step]:
 
         analysis_actions = [
-            TraceFeaturePerfWithTime(project, self.get_handle())
+            TraceFeaturePerfWithTime(
+                project, self.get_handle(), instrumentation
+            )
         ]
         return super().actions_for_project(
             project, instrumentation, analysis_actions, use_feature_model
@@ -260,7 +317,36 @@ class FeaturePerfAnalysisTefUsdt(
     ) -> tp.MutableSequence[actions.Step]:
 
         analysis_actions = [
-            TraceFeaturePerfWithTime(project, self.get_handle(), True)
+            TraceFeaturePerfWithTime(
+                project, self.get_handle(), instrumentation
+            )
+        ]
+        return super().actions_for_project(
+            project, instrumentation, analysis_actions, use_feature_model
+        )
+
+
+class FeaturePerfAnalysisTefRawUsdt(
+    FeaturePerfExperiment, shorthand="FPA_TEF_RawUSDT"
+):
+    """Traces feature performance using VaRA's USDT instrumentation and attaches
+    to these probes via a BPF script to generate a TEF."""
+
+    NAME = "FeaturePerfAnalysisTefRawUsdt"
+    REPORT_SPEC = ReportSpecification(TimeReportAggregate, TEFReport)
+
+    def actions_for_project(
+        self,
+        project: Project,
+        instrumentation: InstrumentationType = InstrumentationType.USDT_RAW,
+        analysis_actions: tp.Optional[tp.Iterable[actions.Step]] = None,
+        use_feature_model: bool = True
+    ) -> tp.MutableSequence[actions.Step]:
+
+        analysis_actions = [
+            TraceFeaturePerfWithTime(
+                project, self.get_handle(), instrumentation
+            )
         ]
         return super().actions_for_project(
             project, instrumentation, analysis_actions, use_feature_model
