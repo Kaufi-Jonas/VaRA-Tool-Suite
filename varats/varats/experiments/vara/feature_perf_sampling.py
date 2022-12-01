@@ -161,8 +161,9 @@ class SampleWithPerf(actions.Step):  # type: ignore
             VaRA.install_location(),
             "share/vara/perf_bpf_tracing/DynamicProbeLocations.bt"
         )
-        bpftrace_script = bpftrace["-o", report_file, "-q",
-                                   bpftrace_script_location, binary]
+        bpftrace_script = bpftrace["-o", report_file, bpftrace_script_location,
+                                   binary]
+        bpftrace_script.with_env(BPFTRACE_PERF_RB_PAGES=512)
 
         # Assertion: Can be run without sudo password prompt.
         bpftrace_cmd = sudo[bpftrace_script]
