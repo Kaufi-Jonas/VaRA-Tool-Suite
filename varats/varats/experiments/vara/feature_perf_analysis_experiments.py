@@ -240,7 +240,7 @@ class FeaturePerfAnalysisDryUsdt(
 
         analysis_actions = [
             TraceFeaturePerfWithTime(
-                project, self.get_handle(), instrumentation
+                project, self.get_handle(), InstrumentationType.NONE
             )
         ]
         return super().actions_for_project(
@@ -267,7 +267,7 @@ class FeaturePerfAnalysisDryRawUsdt(
 
         analysis_actions = [
             TraceFeaturePerfWithTime(
-                project, self.get_handle(), instrumentation
+                project, self.get_handle(), InstrumentationType.NONE
             )
         ]
         return super().actions_for_project(
