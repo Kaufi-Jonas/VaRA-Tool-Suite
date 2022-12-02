@@ -132,34 +132,35 @@ class SampleWithPerf(actions.Step):  # type: ignore
                 vara_result_folder, str(time_report_zip_name)
             )
 
-        with ZippedReportFolder(time_report_zip) as time_tmp, \
-            ZippedReportFolder(perf_report_zip) as perf_tmp:
-            for i in range(self._num_iterations):
+            with ZippedReportFolder(time_report_zip) as time_tmp, \
+                ZippedReportFolder(perf_report_zip) as perf_tmp:
+                for i in range(self._num_iterations):
 
-                # Execute and trace binary.
-                # Print progress.
-                print(
-                    f"Binary={binary.name} Progress "
-                    f"{i}/{self._num_iterations}",
-                    flush=True
-                )
+                    # Execute and trace binary.
+                    # Print progress.
+                    print(
+                        f"Binary={binary.name} Progress "
+                        f"{i}/{self._num_iterations}",
+                        flush=True
+                    )
 
-                # Generate full report filenames.
-                time_report_file = Path(
-                    time_tmp, f"iteration_{i}.{TimeReport.FILE_TYPE}"
-                )
-                perf_report_file = Path(
-                    perf_tmp, f"iteration_{i}.{PerfProfileReport.FILE_TYPE}"
-                )
+                    # Generate full report filenames.
+                    time_report_file = Path(
+                        time_tmp, f"iteration_{i}.{TimeReport.FILE_TYPE}"
+                    )
+                    perf_report_file = Path(
+                        perf_tmp, f"iteration_{i}.{PerfProfileReport.FILE_TYPE}"
+                    )
 
-                with local.cwd(project.source_of_primary):
-                    run_cmd = binary[workload]
-                    run_cmd = time["-v", "-o", time_report_file, run_cmd]
-                    run_cmd = perf["record", "-F", self._sampling_rate, "-g",
-                                   "--user-callchains", "-o", perf_report_file,
-                                   run_cmd]
-                    run_cmd = numactl["--cpunodebind=0", "--membind=0", run_cmd]
-                    run_cmd()
+                    with local.cwd(project.source_of_primary):
+                        run_cmd = binary[workload]
+                        run_cmd = time["-v", "-o", time_report_file, run_cmd]
+                        run_cmd = perf["record", "-F", self._sampling_rate,
+                                       "-g", "--user-callchains", "-o",
+                                       perf_report_file, run_cmd]
+                        run_cmd = numactl["--cpunodebind=0", "--membind=0",
+                                          run_cmd]
+                        run_cmd()
         return actions.StepResult.OK
 
     @staticmethod
