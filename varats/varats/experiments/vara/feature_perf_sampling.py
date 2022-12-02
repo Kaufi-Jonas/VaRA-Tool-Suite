@@ -44,7 +44,7 @@ class SampleWithPerf(actions.Step):  # type: ignore
     ):
         super().__init__(obj=project, action_fn=self.run)
         self._experiment_handle = experiment_handle
-        self._num_iterations = 1
+        self._num_iterations = 10
         self._sampling_rate = sampling_rate
 
     def run(self) -> actions.StepResult:
