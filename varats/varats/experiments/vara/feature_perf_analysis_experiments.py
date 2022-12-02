@@ -36,13 +36,17 @@ class TraceFeaturePerfWithTime(actions.Step):  # type: ignore
                   runtime information using gnu time.'''
 
     def __init__(
-        self, project: Project, experiment_handle: ExperimentHandle,
-        instrumentation: InstrumentationType
+        self,
+        project: Project,
+        experiment_handle: ExperimentHandle,
+        instrumentation: InstrumentationType,
+        use_bcc: bool = False
     ):
         super().__init__(obj=project, action_fn=self.run)
         self._experiment_handle = experiment_handle
         self._instrumentation = instrumentation
         self._num_iterations = 10
+        self._use_bcc = use_bcc
 
     def run(self) -> actions.StepResult:
         """Action function for this step."""
@@ -142,9 +146,14 @@ class TraceFeaturePerfWithTime(actions.Step):  # type: ignore
                                     tef_report_file, binary.path
                                 )
                         elif self._instrumentation is InstrumentationType.USDT:
-                            bpf_runner = \
-                                self.attach_usdt_tracing(
-                                    tef_report_file, binary.path)
+                            if self._use_bcc:
+                                bpf_runner = self.attach_usdt_bcc(
+                                    tef_report_file, binary.path
+                                )
+                            else:
+                                bpf_runner = self.attach_usdt_bpftrace(
+                                    tef_report_file, binary.path
+                                )
 
                         # Run binary.
                         run_cmd & FG  # pylint: disable=W0104
@@ -159,7 +168,7 @@ class TraceFeaturePerfWithTime(actions.Step):  # type: ignore
         return actions.StepResult.OK
 
     @staticmethod
-    def attach_usdt_tracing(report_file: Path, binary: Path) -> Future:
+    def attach_usdt_bcc(report_file: Path, binary: Path) -> Future:
         """Attach bcc script to binary to activate USDT probes."""
         bcc_script_location = Path(
             VaRA.install_location(),
@@ -178,8 +187,27 @@ class TraceFeaturePerfWithTime(actions.Step):  # type: ignore
         return bcc_runner
 
     @staticmethod
-    def attach_usdt_raw_tracing(report_file: Path, binary: Path) -> Future:
+    def attach_usdt_bpftrace(report_file: Path, binary: Path) -> Future:
         """Attach bpftrace script to binary to activate USDT probes."""
+        bpftrace_script_location = Path(
+            VaRA.install_location(),
+            "share/vara/perf_bpf_tracing/UsdtTefMarker.bt"
+        )
+        bpftrace_script = bpftrace["-o", report_file, "-q",
+                                   bpftrace_script_location, binary]
+        bpftrace_script = bpftrace_script.with_env(BPFTRACE_PERF_RB_PAGES=4096)
+
+        # Assertion: Can be run without sudo password prompt.
+        bpftrace_cmd = sudo[bpftrace_script]
+        bpftrace_cmd = numactl["--cpunodebind=0", "--membind=0", bpftrace_cmd]
+
+        bpftrace_runner = bpftrace_cmd & BG
+        sleep(3)  # give bpftrace time to start up
+        return bpftrace_runner
+
+    @staticmethod
+    def attach_usdt_raw_tracing(report_file: Path, binary: Path) -> Future:
+        """Attach bpftrace script to binary to activate raw USDT probes."""
         bpftrace_script_location = Path(
             VaRA.install_location(),
             "share/vara/perf_bpf_tracing/RawUsdtTefMarker.bt"
@@ -193,7 +221,9 @@ class TraceFeaturePerfWithTime(actions.Step):  # type: ignore
         bpftrace_cmd = numactl["--cpunodebind=0", "--membind=0", bpftrace_cmd]
 
         bpftrace_runner = bpftrace_cmd & BG
-        sleep(10)  # give bpftrace time to start up
+        sleep(
+            10
+        )  # give bpftrace time to start up, requires more time than regular USDT script because a large number of probes increases the startup time
         return bpftrace_runner
 
 
@@ -319,6 +349,33 @@ class FeaturePerfAnalysisTefUsdt(
         analysis_actions = [
             TraceFeaturePerfWithTime(
                 project, self.get_handle(), instrumentation
+            )
+        ]
+        return super().actions_for_project(
+            project, instrumentation, analysis_actions, use_feature_model
+        )
+
+
+class FeaturePerfAnalysisTefUsdtBcc(
+    FeaturePerfExperiment, shorthand="FPA_TEF_USDT_BCC"
+):
+    """Traces feature performance using VaRA's USDT instrumentation and attaches
+    to these probes via a lower-level bcc script to generate a TEF."""
+
+    NAME = "FeaturePerfAnalysisTefUsdtBcc"
+    REPORT_SPEC = ReportSpecification(TimeReportAggregate, TEFReport)
+
+    def actions_for_project(
+        self,
+        project: Project,
+        instrumentation: InstrumentationType = InstrumentationType.USDT,
+        analysis_actions: tp.Optional[tp.Iterable[actions.Step]] = None,
+        use_feature_model: bool = True
+    ) -> tp.MutableSequence[actions.Step]:
+
+        analysis_actions = [
+            TraceFeaturePerfWithTime(
+                project, self.get_handle(), instrumentation, use_bcc=True
             )
         ]
         return super().actions_for_project(
