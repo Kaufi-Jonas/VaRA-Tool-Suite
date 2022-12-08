@@ -20,6 +20,10 @@ from varats.experiment.experiment_util import (
     get_default_compile_error_wrapped,
     create_new_success_result_filename,
 )
+from varats.experiment.feature_perf_experiments import (
+    FeaturePerfExperiment,
+    InstrumentationType,
+)
 from varats.project.project_util import ProjectBinaryWrapper, BinaryType
 from varats.provider.feature.feature_model_provider import (
     FeatureModelProvider,
@@ -111,7 +115,7 @@ class CaptureInstrumentationStats(actions.Step):  # type: ignore
         return actions.StepResult.OK
 
 
-class InstrumentationStatsRunner(VersionExperiment, shorthand="IS"):
+class InstrumentationStatsRunner(FeaturePerfExperiment, shorthand="IS"):
     """Runner for measuring statistics about the traced execution of a binary
     using VaRA's instrumented USDT probes."""
 
@@ -120,54 +124,17 @@ class InstrumentationStatsRunner(VersionExperiment, shorthand="IS"):
     REPORT_SPEC = ReportSpecification(VaraInstrumentationStatsReport)
 
     def actions_for_project(
-        self, project: Project
+        self,
+        project: Project,
+        instrumentation: InstrumentationType = InstrumentationType.USDT,
+        analysis_actions: tp.Optional[tp.Iterable[actions.Step]] = None,
+        use_feature_model: bool = True
     ) -> tp.MutableSequence[actions.Step]:
-        """
-        Returns the specified steps to run the project(s) specified in the call
-        in a fixed order.
 
-        Args:
-            project: to analyze
-        """
-
-        # Add tracing markers.
-        fm_provider = FeatureModelProvider.create_provider_for_project(project)
-        if fm_provider is None:
-            raise Exception("Could not get FeatureModelProvider!")
-
-        fm_path = fm_provider.get_feature_model_path(project.version_of_primary)
-
-        if fm_path is None or not fm_path.exists():
-            raise FeatureModelNotFound(project, fm_path)
-
-        # Sets vara tracing flags
-        project.cflags += [
-            "-fvara-feature", f"-fvara-fm-path={fm_path.absolute()}",
-            "-fsanitize=vara", "-fvara-instr=usdt", "-flto", "-fuse-ld=lld"
-        ]
-
-        project.ldflags += ["-flto"]
-
-        # Add the required runtime extensions to the project(s).
-        project.runtime_extension = run.RuntimeExtension(project, self) \
-            << bbtime.RunWithTime()
-
-        # Add the required compiler extensions to the project(s).
-        project.compiler_extension = compiler.RunCompiler(project, self) \
-            << run.WithTimeout()
-
-        # Add own error handler to compile step.
-        project.compile = get_default_compile_error_wrapped(
-            self.get_handle(), project, VaraInstrumentationStatsReport
-        )
-
-        analysis_actions = []
-        analysis_actions.append(actions.Compile(project))
-
-        analysis_actions.append(
+        analysis_actions = [
             CaptureInstrumentationStats(project, self.get_handle())
+        ]
+        actions = super().actions_for_project(
+            project, instrumentation, analysis_actions, use_feature_model
         )
-
-        analysis_actions.append(actions.Clean(project))
-
-        return analysis_actions
+        return actions
